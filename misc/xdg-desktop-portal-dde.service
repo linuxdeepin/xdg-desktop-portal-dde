@@ -1,0 +1,11 @@
+[Unit]
+Description=Portal service (Deepin implementation)
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.impl.portal.desktop.dde
+ExecStart=/usr/lib/xdg-desktop-portal-dde
+Restart=on-failure
