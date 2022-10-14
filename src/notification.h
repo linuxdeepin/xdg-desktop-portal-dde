@@ -1,7 +1,6 @@
 #pragma once
 #include <QDBusAbstractAdaptor>
 #include <QDBusObjectPath>
-#include <qobjectdefs.h>
 
 class NotificationProtal : public QDBusAbstractAdaptor
 {

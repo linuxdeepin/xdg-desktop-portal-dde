@@ -1,0 +1,4 @@
+[portal]
+DBusName=org.freedesktop.impl.portal.desktop.dde
+Interfaces=org.freedesktop.impl.portal.Screenshot;
+UseIn=Deepin;

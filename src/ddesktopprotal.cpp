@@ -1,6 +1,5 @@
 #include "ddesktopprotal.h"
 
-#include <QDebug>
 DDestkopPortal::DDestkopPortal(QObject *parent)
     : QObject(parent)
     , m_filechooser(new FileChooserProtal(this))

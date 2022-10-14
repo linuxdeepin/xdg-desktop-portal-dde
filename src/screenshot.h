@@ -2,6 +2,7 @@
 #include <QDBusObjectPath>
 #include <QDBusAbstractAdaptor>
 #include <qobjectdefs.h>
+#include <QDBusInterface>
 
 class ScreenshotPortal : public QDBusAbstractAdaptor
 {
@@ -22,4 +23,9 @@ public slots:
                    const QString &parent_window,
                    const QVariantMap &options,
                    QVariantMap &result);
+    uint Screenshot(const QDBusObjectPath &handle,
+                    const QString &app_id,
+                    const QString &parent_window,
+                    const QString &options,
+                    QVariantMap &results);
 };

@@ -7,5 +7,5 @@ ConditionEnvironment=WAYLAND_DISPLAY
 [Service]
 Type=dbus
 BusName=org.freedesktop.impl.portal.desktop.dde
-ExecStart=/usr/lib/xdg-desktop-portal-dde
+ExecStart=@CMAKE_INSTALL_FULL_LIBEXECDIR@/xdg-desktop-portal-dde
 Restart=on-failure

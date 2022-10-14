@@ -1,7 +1,15 @@
 #include "screenshot.h"
 #include <QDBusMetaType>
+#include <QDBusInterface>
+#include <QDBusPendingReply>
+#include <QUrl>
+#include <QStandardPaths>
+#include <QDateTime>
+#include <qloggingcategory.h>
 #include <qstringliteral.h>
 #include <QColor>
+#include <QLoggingCategory>
+Q_LOGGING_CATEGORY(XdgDesktopDDEScreenShot, "xdg-dde-screenshot")
 Q_DECLARE_METATYPE(ScreenshotPortal::ColorRGB)
 
 QDBusArgument &operator<<(QDBusArgument &arg, const ScreenshotPortal::ColorRGB &color)
@@ -47,6 +55,7 @@ ScreenshotPortal::ScreenshotPortal(QObject *parent)
 {
     qDBusRegisterMetaType<QColor>();
     qDBusRegisterMetaType<ColorRGB>();
+    qCDebug(XdgDesktopDDEScreenShot) << "Screenshot and ColorPicker init";
 }
 uint ScreenshotPortal::PickColor(const QDBusObjectPath &handle,
                                  const QString &app_id,
@@ -54,11 +63,43 @@ uint ScreenshotPortal::PickColor(const QDBusObjectPath &handle,
                                  const QVariantMap &options,
                                  QVariantMap &result)
 {
-    ColorRGB color = {
-        .red = 1,
-        .green = 1,
-        .blue = 1,
-    };
-    result.insert(QStringLiteral("color"), QVariant::fromValue<ScreenshotPortal::ColorRGB>(color));
-    return 0;
+    qCDebug(XdgDesktopDDEScreenShot) << "Start ColorPicker";
+    QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+                                                      QStringLiteral("/ColorPicker"),
+                                                      QStringLiteral("org.kde.kwin.ColorPicker"),
+                                                      QStringLiteral("pick"));
+    QDBusPendingReply<QColor> pcall = QDBusConnection::sessionBus().call(msg);
+    if (pcall.isValid()) {
+        QColor selectedColor = pcall.value();
+        ColorRGB color;
+        color.red = selectedColor.redF();
+        color.green = selectedColor.greenF();
+        color.blue = selectedColor.blueF();
+        result.insert(QStringLiteral("color"), QVariant::fromValue<ScreenshotPortal::ColorRGB>(color));
+        return 0;
+    }
+    qCDebug(XdgDesktopDDEScreenShot) << "ColorPicker Failed";
+    return 1;
+}
+uint ScreenshotPortal::Screenshot(const QDBusObjectPath &handle,
+                                  const QString &app_id,
+                                  const QString &parent_window,
+                                  const QString &options,
+                                  QVariantMap &results)
+{
+    qCDebug(XdgDesktopDDEScreenShot) << "Start screenshot";
+    QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
+                                                      QStringLiteral("/Screenshot"),
+                                                      QStringLiteral("org.kde.kwin.Screenshot"),
+                                                      QStringLiteral("screenshotFullScreen"));
+    QDBusPendingReply<QString> pcall = QDBusConnection::sessionBus().call(msg);
+    pcall.waitForFinished();
+    if (pcall.isValid()) {
+        auto filepath = pcall.value();
+        qCDebug(XdgDesktopDDEScreenShot) << "Successed" << QString("Filepath is %1").arg(filepath);
+        results.insert(QStringLiteral("uri"), QUrl::fromLocalFile(filepath).toString(QUrl::FullyEncoded));
+        return 0;
+    }
+    qCDebug(XdgDesktopDDEScreenShot) << "Screenshot Failed";
+    return 1;
 }
