@@ -61,7 +61,7 @@ uint ScreenshotPortal::PickColor(const QDBusObjectPath &handle,
                                  const QString &app_id,
                                  const QString &parent_window,
                                  const QVariantMap &options,
-                                 QVariantMap &result)
+                                 QVariantMap &results)
 {
     qCDebug(XdgDesktopDDEScreenShot) << "Start ColorPicker";
     QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
@@ -75,7 +75,7 @@ uint ScreenshotPortal::PickColor(const QDBusObjectPath &handle,
         color.red = selectedColor.redF();
         color.green = selectedColor.greenF();
         color.blue = selectedColor.blueF();
-        result.insert(QStringLiteral("color"), QVariant::fromValue<ScreenshotPortal::ColorRGB>(color));
+        results.insert(QStringLiteral("color"), QVariant::fromValue<ScreenshotPortal::ColorRGB>(color));
         return 0;
     }
     qCDebug(XdgDesktopDDEScreenShot) << "ColorPicker Failed";
@@ -84,13 +84,13 @@ uint ScreenshotPortal::PickColor(const QDBusObjectPath &handle,
 uint ScreenshotPortal::Screenshot(const QDBusObjectPath &handle,
                                   const QString &app_id,
                                   const QString &parent_window,
-                                  const QString &options,
+                                  const QVariantMap &options,
                                   QVariantMap &results)
 {
     qCDebug(XdgDesktopDDEScreenShot) << "Start screenshot";
     QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
                                                       QStringLiteral("/Screenshot"),
-                                                      QStringLiteral("org.kde.kwin.Screenshot"),
+                                                      QStringLiteral("org.kde.kwin.screenshot"),
                                                       QStringLiteral("screenshotFullScreen"));
     QDBusPendingReply<QString> pcall = QDBusConnection::sessionBus().call(msg);
     pcall.waitForFinished();

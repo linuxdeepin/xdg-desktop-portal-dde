@@ -22,10 +22,10 @@ public slots:
                    const QString &app_id,
                    const QString &parent_window,
                    const QVariantMap &options,
-                   QVariantMap &result);
+                   QVariantMap &results);
     uint Screenshot(const QDBusObjectPath &handle,
                     const QString &app_id,
                     const QString &parent_window,
-                    const QString &options,
+                    const QVariantMap &options,
                     QVariantMap &results);
 };
