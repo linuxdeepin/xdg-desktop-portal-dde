@@ -91,7 +91,7 @@ uint ScreenshotPortal::Screenshot(const QDBusObjectPath &handle,
     QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
                                                       QStringLiteral("/Screenshot"),
                                                       QStringLiteral("org.kde.kwin.Screenshot"),
-                                                      QStringLiteral("screenshotFullScreen"));
+                                                      QStringLiteral("screenshotFullscreen"));
     QDBusPendingReply<QString> pcall = QDBusConnection::sessionBus().call(msg);
     pcall.waitForFinished();
     if (pcall.isValid()) {
