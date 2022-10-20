@@ -90,7 +90,7 @@ uint ScreenshotPortal::Screenshot(const QDBusObjectPath &handle,
     qCDebug(XdgDesktopDDEScreenShot) << "Start screenshot";
     QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.KWin"),
                                                       QStringLiteral("/Screenshot"),
-                                                      QStringLiteral("org.kde.kwin.screenshot"),
+                                                      QStringLiteral("org.kde.kwin.Screenshot"),
                                                       QStringLiteral("screenshotFullScreen"));
     QDBusPendingReply<QString> pcall = QDBusConnection::sessionBus().call(msg);
     pcall.waitForFinished();
