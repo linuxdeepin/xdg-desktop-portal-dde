@@ -10,7 +10,7 @@ WallPaperPortal::WallPaperPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {
 }
-uint WallPaperPortal::SetWallpaperUrI(const QDBusObjectPath &handle,
+uint WallPaperPortal::SetWallpaperURI(const QDBusObjectPath &handle,
                                       const QString &app_id,
                                       const QString &parent_window,
                                       const QString &url,

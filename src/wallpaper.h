@@ -11,7 +11,7 @@ public:
     explicit WallPaperPortal(QObject *parent);
     ~WallPaperPortal() = default;
 public slots:
-    uint SetWallpaperUrI(const QDBusObjectPath &handle,
+    uint SetWallpaperURI(const QDBusObjectPath &handle,
                          const QString &app_id,
                          const QString &parent_window,
                          const QString &url,
