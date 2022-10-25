@@ -1,4 +1,4 @@
 [portal]
 DBusName=org.freedesktop.impl.portal.desktop.dde
-Interfaces=org.freedesktop.impl.portal.Screenshot;org.freedesktop.impl.portal.Notification;org.freedesktop.impl.portal.FileChooser;org.freedesktop.impl.portal.WallPaper
+Interfaces=org.freedesktop.impl.portal.Screenshot;org.freedesktop.impl.portal.Notification;org.freedesktop.impl.portal.FileChooser;org.freedesktop.impl.portal.Wallpaper
 UseIn=Deepin

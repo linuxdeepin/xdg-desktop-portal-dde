@@ -3,6 +3,7 @@
 
 Q_LOGGING_CATEGORY(XdgDesktopDDENotification, "xdg-dde-notification")
 
+// TODO: if needed
 NotificationProtal::NotificationProtal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {

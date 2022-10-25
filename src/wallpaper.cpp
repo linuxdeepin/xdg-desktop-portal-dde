@@ -13,15 +13,15 @@ WallPaperPortal::WallPaperPortal(QObject *parent)
 uint WallPaperPortal::SetWallpaperURI(const QDBusObjectPath &handle,
                                       const QString &app_id,
                                       const QString &parent_window,
-                                      const QString &url,
+                                      const QString &uri,
                                       const QVariantMap &options)
 {
     qCDebug(XdgDesktopDDEWallpaper) << "Start set wallpaper";
     QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.deepin.daemon.Appearance"),
-                                                      QStringLiteral("/org/deepin/daemon./Appearance"),
+                                                      QStringLiteral("/org/deepin/daemon/Appearance"),
                                                       QStringLiteral("com.deepin.daemon.Appearance"),
                                                       QStringLiteral("SetMonitorBackground"));
-    msg.setArguments({QVariant::fromValue(parent_window), QVariant::fromValue(url)});
+    msg.setArguments({QVariant::fromValue(parent_window), QVariant::fromValue(uri)});
     QDBusPendingReply<> pcall = QDBusConnection::sessionBus().call(msg);
     if (pcall.isValid()) {
         qCDebug(XdgDesktopDDEWallpaper) << "setting succeed";

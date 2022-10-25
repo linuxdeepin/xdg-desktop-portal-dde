@@ -57,6 +57,7 @@ ScreenshotPortal::ScreenshotPortal(QObject *parent)
     qDBusRegisterMetaType<ColorRGB>();
     qCDebug(XdgDesktopDDEScreenShot) << "Screenshot and ColorPicker init";
 }
+
 uint ScreenshotPortal::PickColor(const QDBusObjectPath &handle,
                                  const QString &app_id,
                                  const QString &parent_window,
@@ -81,6 +82,8 @@ uint ScreenshotPortal::PickColor(const QDBusObjectPath &handle,
     qCDebug(XdgDesktopDDEScreenShot) << "ColorPicker Failed";
     return 1;
 }
+
+// TODO: maybe need update
 uint ScreenshotPortal::Screenshot(const QDBusObjectPath &handle,
                                   const QString &app_id,
                                   const QString &parent_window,
