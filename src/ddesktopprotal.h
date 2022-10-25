@@ -1,5 +1,6 @@
 #pragma once
 #include "screenshot.h"
+#include "screencast.h"
 #include "background.h"
 #include "filechooser.h"
 #include "wallpaper.h"
@@ -16,6 +17,7 @@ public:
 
 private:
     ScreenshotPortal *m_screenshot = nullptr;
+    ScreenCastPortal *m_screencast = nullptr;
     BackgroundPortal *m_background = nullptr;
     WallPaperPortal *const m_wallpaper;
     NotificationProtal *const m_notification;

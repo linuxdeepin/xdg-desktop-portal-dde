@@ -14,6 +14,8 @@ set(SRC
   ddesktopprotal.cpp
   screenshot.h
   screenshot.cpp
+  screencast.h
+  screencast.cpp
   background.h
   background.cpp
   filechooser.h
