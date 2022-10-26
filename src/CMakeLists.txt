@@ -24,6 +24,8 @@ set(SRC
   wallpaper.cpp
   notification.h
   notification.cpp
+  trash.h
+  trash.cpp
 )
 
 add_executable(${PROJECT_NAME}

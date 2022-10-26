@@ -5,6 +5,7 @@
 #include "filechooser.h"
 #include "wallpaper.h"
 #include "notification.h"
+#include "trash.h"
 #include <QDBusContext>
 #include <QObject>
 
@@ -22,4 +23,5 @@ private:
     WallPaperPortal *const m_wallpaper;
     NotificationProtal *const m_notification;
     FileChooserProtal *const m_filechooser;
+    TrashPortal *const m_trash;
 };
