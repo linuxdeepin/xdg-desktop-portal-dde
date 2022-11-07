@@ -11,5 +11,12 @@ DDestkopPortal::DDestkopPortal(QObject *parent)
         m_screenshot = new ScreenshotPortal(this);
         m_screencast = new ScreenCastPortal(this);
         m_background = new BackgroundPortal(this);
+        m_settings = new SettingsPortal(this);
+        m_inhibit = new InhibitPortal(this);
+        m_account = new AccountPortal(this);
+        m_session = new SessionPortal(this);
+        m_shotcut = new GlobalShotcutProtal(this);
+        m_lockdown = new LockdownProtal(this);
+        m_secret = new SecretPortal(this);
     }
 }
