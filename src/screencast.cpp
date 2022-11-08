@@ -1,5 +1,5 @@
 #include "screencast.h"
-#include <qdbusabstractadaptor.h>
+
 #include <QLoggingCategory>
 
 Q_LOGGING_CATEGORY(XdgDesktopDDEScreenCastProtal, "xdg-dde-screencast")
@@ -7,6 +7,7 @@ Q_LOGGING_CATEGORY(XdgDesktopDDEScreenCastProtal, "xdg-dde-screencast")
 ScreenCastPortal::ScreenCastPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {
+    qCDebug(XdgDesktopDDEScreenCastProtal) << "init screencast";
 }
 
 uint ScreenCastPortal::CreateSession(const QDBusObjectPath &handle,

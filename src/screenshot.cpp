@@ -1,4 +1,5 @@
 #include "screenshot.h"
+
 #include <QDBusMetaType>
 #include <QDBusInterface>
 #include <QDBusPendingReply>
@@ -9,6 +10,7 @@
 #include <qstringliteral.h>
 #include <QColor>
 #include <QLoggingCategory>
+
 Q_LOGGING_CATEGORY(XdgDesktopDDEScreenShot, "xdg-dde-screenshot")
 Q_DECLARE_METATYPE(ScreenshotPortal::ColorRGB)
 

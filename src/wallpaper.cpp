@@ -1,15 +1,19 @@
 #include "wallpaper.h"
+
 #include <QLoggingCategory>
 #include <QDBusMessage>
 #include <qdbusconnection.h>
 #include <qloggingcategory.h>
 #include <QDBusPendingReply>
+
 Q_LOGGING_CATEGORY(XdgDesktopDDEWallpaper, "xdg-dde-wallpaper")
 
 WallPaperPortal::WallPaperPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {
+    qCDebug(XdgDesktopDDEWallpaper) << "WallPaper init";
 }
+
 uint WallPaperPortal::SetWallpaperURI(const QDBusObjectPath &handle,
                                       const QString &app_id,
                                       const QString &parent_window,

@@ -5,6 +5,10 @@
 #include <cstdio>
 #include <QDebug>
 #include <qstringliteral.h>
+#include <QLoggingCategory>
+
+Q_LOGGING_CATEGORY(XdgDesktopDDE, "xdg-dde")
+
 int main(int argc, char *argv[])
 {
     QCoreApplication::setAttribute(Qt::AA_DisableSessionManager);
@@ -19,9 +23,10 @@ int main(int argc, char *argv[])
         DDestkopPortal *ddesktopprotal = new DDestkopPortal(&a);
         if (sessionBus.registerObject(
                 QStringLiteral("/org/freedesktop/portal/desktop"), ddesktopprotal, QDBusConnection::ExportAdaptors)) {
-            qDebug() << "started";
+            qCDebug(XdgDesktopDDE) << "portal started";
         }
     } else {
+        qCDebug(XdgDesktopDDE) << "Another portal is starting";
         return 1;
     }
     return a.exec();

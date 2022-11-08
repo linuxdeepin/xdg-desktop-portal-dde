@@ -24,6 +24,20 @@ set(SRC
   wallpaper.cpp
   notification.h
   notification.cpp
+  settings.h
+  settings.cpp
+  inhibit.h
+  inhibit.cpp
+  account.h
+  account.cpp
+  session.h
+  session.cpp
+  globalshotcut.h
+  globalshotcut.cpp
+  lockdown.h
+  lockdown.cpp
+  secret.h
+  secret.cpp
 )
 
 add_executable(${PROJECT_NAME}
