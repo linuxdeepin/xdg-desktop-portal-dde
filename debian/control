@@ -1,0 +1,20 @@
+Source: xdg-desktop-portal-dde
+Section: libdevel
+Priority: optional
+Maintainer: Deepin Packages Builder <packages@deepin.com>
+Build-Depends:
+  debhelper (>= 9),
+  cmake, qtbase5-dev, qttools5-dev-tools
+Standards-Version: 4.5.0
+
+Package: xdg-desktop-portal-dde
+Architecture: any
+Depends: 
+  ${shlibs:Depends}, 
+  ${misc:Depends}
+Description: Dtk poortal backend for xdg-desktop-portal
+  xdg-desktop-portal-dde provide a DTK implementation for the
+  desktop-agnostic xdg-desktop-portal service. This allows sandboxed
+  applications to request services from outside the sandbox using
+  Dtk GUIs (app chooser, file chooser, print dialog) or using GNOME
+  services (session manager, screenshot provider).
