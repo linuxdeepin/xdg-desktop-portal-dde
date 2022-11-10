@@ -18,13 +18,18 @@ Files: archlinux/*
 Copyright: None
 License: CC0-1.0
 
+# debian
+Files: debian/*
+Copyright: None
+License: CC0-1.0
+
 # cmake
 Files: *CMakeLists.txt
 Copyright: None
 License: CC0-1.0
 
 # config
-Files: .clang-format
+Files: .clang-format .tx/*
 Copyright: None
 License: CC0-1.0
 
