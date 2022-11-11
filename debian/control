@@ -4,7 +4,8 @@ Priority: optional
 Maintainer: Deepin Packages Builder <packages@deepin.com>
 Build-Depends:
   debhelper (>= 9),
-  cmake, qtbase5-dev, qttools5-dev-tools
+  cmake, qtbase5-dev, qttools5-dev-tools, pkg-config,
+	qtwayland5-dev-tools, libwayland-bin, libqt5waylandclient5-dev, libwayland-dev
 Standards-Version: 4.5.0
 
 Package: xdg-desktop-portal-dde

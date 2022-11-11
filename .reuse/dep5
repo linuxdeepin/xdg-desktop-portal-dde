@@ -24,7 +24,7 @@ Copyright: None
 License: CC0-1.0
 
 # cmake
-Files: *CMakeLists.txt
+Files: *CMakeLists.txt *.cmake
 Copyright: None
 License: CC0-1.0
 
