@@ -3,17 +3,18 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #pragma once
+
 #include <QDBusAbstractAdaptor>
 #include <QDBusObjectPath>
 
-class NotificationProtal : public QDBusAbstractAdaptor
+class NotificationPortal : public QDBusAbstractAdaptor
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Notification")
 
 public:
-    explicit NotificationProtal(QObject *parent);
-    ~NotificationProtal() = default;
+    explicit NotificationPortal(QObject *parent);
+    ~NotificationPortal() = default;
 
 signals:
     void ActionInvoked(const QString &, const QString &, const QString &, const QList<QVariant> &) const;

@@ -7,15 +7,15 @@
 #include <QLoggingCategory>
 #include <qloggingcategory.h>
 
-Q_LOGGING_CATEGORY(XdgDesktopDDEFileChooser, "xdg-dde-filechooser")
+Q_LOGGING_CATEGORY(XdgDesktopDDEFileChooser, "xdg-dde-fileChooser")
 
-FileChooserProtal::FileChooserProtal(QObject *parent)
+FileChooserPortal::FileChooserPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {
-    qCDebug(XdgDesktopDDEFileChooser) << "init dde-filechooser";
+    qCDebug(XdgDesktopDDEFileChooser) << "init dde-fileChooser";
 }
 
-uint FileChooserProtal::OpenFile(const QDBusObjectPath &handle,
+uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
                                  const QString &app_id,
                                  const QString &parent_window,
                                  const QString &title,
@@ -26,7 +26,7 @@ uint FileChooserProtal::OpenFile(const QDBusObjectPath &handle,
     return 1;
 }
 
-uint FileChooserProtal::SaveFile(const QDBusObjectPath &handle,
+uint FileChooserPortal::SaveFile(const QDBusObjectPath &handle,
                                  const QString &app_id,
                                  const QString &parent_window,
                                  const QString &title,

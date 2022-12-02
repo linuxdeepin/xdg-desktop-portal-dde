@@ -105,7 +105,7 @@ uint ScreenshotPortal::Screenshot(const QDBusObjectPath &handle,
     pcall.waitForFinished();
     if (pcall.isValid()) {
         auto filepath = pcall.value();
-        qCDebug(XdgDesktopDDEScreenShot) << "Successed" << QString("Filepath is %1").arg(filepath);
+        qCDebug(XdgDesktopDDEScreenShot) << "Succeed" << QString("Filepath is %1").arg(filepath);
         results.insert(QStringLiteral("uri"), QUrl::fromLocalFile(filepath).toString(QUrl::FullyEncoded));
         return 0;
     }

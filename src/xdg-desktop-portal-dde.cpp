@@ -2,12 +2,10 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-#include "ddesktopprotal.h"
+#include "ddesktopportal.h"
 
 #include <QApplication>
 #include <QDBusConnection>
-#include <cstdio>
-#include <QDebug>
 #include <qstringliteral.h>
 #include <QLoggingCategory>
 
@@ -24,14 +22,15 @@ int main(int argc, char *argv[])
 
     QDBusConnection sessionBus = QDBusConnection::sessionBus();
     if (sessionBus.registerService(QStringLiteral("org.freedesktop.impl.portal.desktop.dde"))) {
-        DDestkopPortal *ddesktopprotal = new DDestkopPortal(&a);
+        DDesktopPortal *desktopPortal = new DDesktopPortal(&a);
         if (sessionBus.registerObject(
-                QStringLiteral("/org/freedesktop/portal/desktop"), ddesktopprotal, QDBusConnection::ExportAdaptors)) {
+                QStringLiteral("/org/freedesktop/portal/desktop"), desktopPortal, QDBusConnection::ExportAdaptors)) {
             qCDebug(XdgDesktopDDE) << "portal started";
         }
     } else {
         qCDebug(XdgDesktopDDE) << "Another portal is starting";
         return 1;
     }
+
     return a.exec();
 }
