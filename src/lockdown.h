@@ -8,7 +8,7 @@
 #include <QDBusObjectPath>
 
 // FIXME: seems should be "-" not "_"
-class LockdownProtal : public QDBusAbstractAdaptor
+class LockdownPortal : public QDBusAbstractAdaptor
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Lockdown")
@@ -37,13 +37,13 @@ class LockdownProtal : public QDBusAbstractAdaptor
     inline bool microphone() const { return m_microphone; }
     inline void setMicrophone(bool enabled) { m_microphone = enabled; }
 
-    Q_PROPERTY(bool disable_sound_output READ soundoutput WRITE setSoundOutput)
-    inline bool soundoutput() const { return m_sound_output; }
+    Q_PROPERTY(bool disable_sound_output READ soundOutput WRITE setSoundOutput)
+    inline bool soundOutput() const { return m_sound_output; }
     inline void setSoundOutput(bool enabled) { m_sound_output = enabled; }
 
 public:
-    explicit LockdownProtal(QObject *parent);
-    ~LockdownProtal() = default;
+    explicit LockdownPortal(QObject *parent);
+    ~LockdownPortal() = default;
 
 private:
     bool m_printing;

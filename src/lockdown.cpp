@@ -8,7 +8,7 @@
 
 Q_LOGGING_CATEGORY(XdgDesktopDDELockDown, "xdg-dde-lockdown")
 
-LockdownProtal::LockdownProtal(QObject *parent)
+LockdownPortal::LockdownPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
     , m_printing(false)
     , m_save_to_disk(false)

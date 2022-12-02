@@ -7,7 +7,7 @@
 #include <QDBusAbstractAdaptor>
 #include <QDBusObjectPath>
 
-class GlobalShotcutProtal : public QDBusAbstractAdaptor
+class GlobalShortcutPortal : public QDBusAbstractAdaptor
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.GlobalShortcuts")
@@ -15,8 +15,8 @@ class GlobalShotcutProtal : public QDBusAbstractAdaptor
     inline uint version() const { return 1; }
 
 public:
-    explicit GlobalShotcutProtal(QObject *parent);
-    ~GlobalShotcutProtal() = default;
+    explicit GlobalShortcutPortal(QObject *parent);
+    ~GlobalShortcutPortal() = default;
 
 public slots:
     uint CreateSession(const QDBusObjectPath &handle,

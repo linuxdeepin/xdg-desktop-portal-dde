@@ -9,9 +9,9 @@ find_package(
 #find_package(DtkGui)
 #find_package(DtkWidget)
 set(SRC
-  xdg-desktop-protal-dde.cpp
-  ddesktopprotal.h
-  ddesktopprotal.cpp
+  xdg-desktop-portal-dde.cpp
+  ddesktopportal.h
+  ddesktopportal.cpp
   screenshot.h
   screenshot.cpp
   screencast.h
@@ -32,8 +32,8 @@ set(SRC
   account.cpp
   session.h
   session.cpp
-  globalshotcut.h
-  globalshotcut.cpp
+  globalshortcut.h
+  globalshortcut.cpp
   lockdown.h
   lockdown.cpp
   secret.h

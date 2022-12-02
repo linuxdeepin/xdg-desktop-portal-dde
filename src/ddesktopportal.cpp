@@ -2,13 +2,27 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-#include "ddesktopprotal.h"
+#include "ddesktopportal.h"
 
-DDestkopPortal::DDestkopPortal(QObject *parent)
+#include "secret.h"
+#include "lockdown.h"
+#include "globalshortcut.h"
+#include "session.h"
+#include "account.h"
+#include "inhibit.h"
+#include "settings.h"
+#include "screenshot.h"
+#include "screencast.h"
+#include "background.h"
+#include "filechooser.h"
+#include "wallpaper.h"
+#include "notification.h"
+
+DDesktopPortal::DDesktopPortal(QObject *parent)
     : QObject(parent)
-    , m_filechooser(new FileChooserProtal(this))
+    , m_fileChooser(new FileChooserPortal(this))
     , m_wallpaper(new WallPaperPortal(this))
-    , m_notification(new NotificationProtal(this))
+    , m_notification(new NotificationPortal(this))
 {
     const QByteArray xdgCurrentDesktop = qgetenv("XDG_CURRENT_DESKTOP");
     if (xdgCurrentDesktop.compare("Deepin", Qt::CaseInsensitive) == 0) {
@@ -19,8 +33,8 @@ DDestkopPortal::DDestkopPortal(QObject *parent)
         m_inhibit = new InhibitPortal(this);
         m_account = new AccountPortal(this);
         m_session = new SessionPortal(this);
-        m_shotcut = new GlobalShotcutProtal(this);
-        m_lockdown = new LockdownProtal(this);
+        m_shortcut = new GlobalShortcutPortal(this);
+        m_lockdown = new LockdownPortal(this);
         m_secret = new SecretPortal(this);
     }
 }
