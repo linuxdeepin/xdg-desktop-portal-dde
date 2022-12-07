@@ -28,6 +28,10 @@ set(SRC
   settings.cpp
   inhibit.h
   inhibit.cpp
+  appchooser.h
+  appchooser.cpp
+  appchooserdialog.h
+  appchooserdialog.cpp
   account.h
   account.cpp
   session.h

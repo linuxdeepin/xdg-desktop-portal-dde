@@ -20,6 +20,7 @@ class SecretPortal;
 class WallPaperPortal;
 class NotificationPortal;
 class FileChooserPortal;
+class AppChooserPortal;
 
 class DDesktopPortal : public QObject, public QDBusContext
 {
@@ -30,6 +31,8 @@ public:
     ~DDesktopPortal() = default;
 
 private:
+    AppChooserPortal *const m_appChooser;
+    FileChooserPortal *const m_fileChooser;
     ScreenshotPortal *m_screenshot = nullptr;
     ScreenCastPortal *m_screencast = nullptr;
     BackgroundPortal *m_background = nullptr;
@@ -42,5 +45,4 @@ private:
     SecretPortal *m_secret = nullptr;
     WallPaperPortal *const m_wallpaper;
     NotificationPortal *const m_notification;
-    FileChooserPortal *const m_fileChooser;
 };
