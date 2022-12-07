@@ -38,6 +38,10 @@ set(SRC
   lockdown.cpp
   secret.h
   secret.cpp
+  utils.h
+  utils.cpp
+  request.h
+  request.cpp
 )
 
 add_executable(${PROJECT_NAME}

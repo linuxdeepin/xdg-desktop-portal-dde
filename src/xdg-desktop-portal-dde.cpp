@@ -13,7 +13,14 @@ Q_LOGGING_CATEGORY(XdgDesktopDDE, "xdg-dde")
 
 int main(int argc, char *argv[])
 {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+    /* Disable X11 session management
+    As XdgDesktopPortal is a QGuiApplication it connects to our X session manager.
+    By default Qt apps behave like "applications" and this can end up on our auto-restart list if the user saves their session.
+    */
     QCoreApplication::setAttribute(Qt::AA_DisableSessionManager);
+#endif
+
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
