@@ -11,18 +11,21 @@
 #include <QDBusMessage>
 #include <QDBusServiceWatcher>
 #include <QLoggingCategory>
+#include <QTimer>
 
 Q_LOGGING_CATEGORY(appChooserCategory, "xdg-dde-appchooser")
 AppChooserPortal::AppChooserPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {
 #ifdef QT_DEBUG
-    QVariantMap results;
-    QVariantMap options;
-    options.insert("modal", true);
-    options.insert("content_type", "title");
-    ChooseApplication(QDBusObjectPath(), "", "", QStringList(), options, results);
-    qDebug() << results;
+  QTimer::singleShot(0, this, [=] {
+      QVariantMap results;
+      QVariantMap options;
+      options.insert("modal", true);
+      options.insert("content_type", "title");
+      ChooseApplication(QDBusObjectPath(), "", "", QStringList(), options, results);
+      qDebug() << results;
+  });
 #endif
 }
 

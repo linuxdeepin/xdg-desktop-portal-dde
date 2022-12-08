@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "utils.h"
+
 #include <QDBusAbstractAdaptor>
 #include <QDBusObjectPath>
 
@@ -24,10 +26,22 @@ public slots:
                        const QString &app_id,
                        const QVariantMap &options,
                        QVariantMap &results);
-    QVariantMap BindShortCuts(const QDBusObjectPath &handle,
-                              const QDBusObjectPath &session_handle,
-                              const QVariantMap &shortcuts,
-                              const QString &parent_window,
-                              const QVariantMap &options);
-    QVariantMap ListShortCuts(const QDBusObjectPath &handle, const QDBusObjectPath &session_handle);
+    uint BindShortCuts(const QDBusObjectPath &handle,
+                       const QDBusObjectPath &session_handle,
+                       const QVariantMap &shortcuts,
+                       const QString &parent_window,
+                       const QVariantMap &options,
+                       QVariantMap &results);
+    uint ListShortCuts(const QDBusObjectPath &handle, const QDBusObjectPath &session_handle, QVariantMap &results);
+
+Q_SIGNALS:
+    void Activated(const QDBusObjectPath &session_handle,
+                   const QString &shortcutId,
+                   quint64 timestamp,
+                   const QVariantMap &unused = {});
+    void Deactivated(const QDBusObjectPath &session_handle,
+                     const QString &shortcutId,
+                     quint64 timestamp,
+                     const QVariantMap &unused = {});
+    void ShortcutsChanged(const QDBusObjectPath &session_handle, const Shortcuts &shortcuts);
 };
