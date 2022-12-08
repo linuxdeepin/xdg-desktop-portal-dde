@@ -11,6 +11,8 @@ class InhibitPortal : public QDBusAbstractAdaptor
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Inhibit")
+    Q_PROPERTY(uint version READ version CONSTANT)
+    inline uint version() const { return 3; }
 
 public:
     explicit InhibitPortal(QObject *parent);
@@ -19,4 +21,7 @@ public:
 public slots:
     void
     Inhibit(const QDBusObjectPath &handle, const QString &app_id, const QString &window, uint flags, const QVariantMap &options);
+
+private slots:
+    void onCloseRequested(const QVariant &data);
 };

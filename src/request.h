@@ -2,38 +2,30 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-#ifndef XDG_DESKTOP_PORTAL_KDE_REQUEST_H
-#define XDG_DESKTOP_PORTAL_KDE_REQUEST_H
+#pragma once
 
-#include <QDBusVirtualObject>
+#include <functional>
+
 #include <QObject>
+#include <QDBusObjectPath>
+#include <QDBusError>
 
-class QDBusObjectPath;
-
-class Request : public QDBusVirtualObject
+class Request : public QObject
 {
     Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Request")
+
 public:
-    explicit Request(const QDBusObjectPath &handle, QObject *parent = nullptr, const QString &portalName = QString(), const QVariant &data = QVariant());
-    ~Request() override;
+    Request(const QDBusObjectPath &handle, const QVariant &data, QObject *parent = nullptr);
+    ~Request();
 
-    bool handleMessage(const QDBusMessage &message, const QDBusConnection &connection) override;
-    QString introspect(const QString &path) const override;
+public slots:  // DBus methods
+    Q_SCRIPTABLE void Close(const QDBusMessage &message);
 
-    template<class T>
-    static Request *makeClosableDialogRequest(const QDBusObjectPath &handle, T *dialogAndParent)
-    {
-        auto request = new Request(handle, dialogAndParent);
-        connect(request, &Request::closeRequested, dialogAndParent, &T::reject);
-        return request;
-    }
-
-Q_SIGNALS:
-    void closeRequested();
+signals:
+    void closeRequested(const QVariant &data);
 
 private:
-    const QVariant m_data;
-    const QString m_portalName;
+    QDBusObjectPath m_handle;
+    QVariant m_data;
 };
-
-#endif // XDG_DESKTOP_PORTAL_KDE_REQUEST_H
