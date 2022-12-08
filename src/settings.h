@@ -23,7 +23,10 @@ public:
 public slots:
     void ReadAll(const QStringList &groups);
     void Read(const QString &group, const QString &key);
+    void onPaletteChanged(const QPalette &palette);
 
 signals:
     void SettingChanged(const QString &group, const QString &key, const QDBusVariant &value);
+private:
+    QDBusVariant readFdoColorScheme();
 };
