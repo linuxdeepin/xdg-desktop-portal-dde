@@ -46,6 +46,7 @@ set(SRC
   utils.cpp
   request.h
   request.cpp
+  dbushelpers.h
 )
 
 add_executable(${PROJECT_NAME}
