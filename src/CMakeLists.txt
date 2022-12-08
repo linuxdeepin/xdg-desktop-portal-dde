@@ -48,11 +48,11 @@ set(SRC
   lockdown.cpp
   secret.h
   secret.cpp
-  utils.h
-  utils.cpp
   request.h
   request.cpp
   dbushelpers.h
+  utils.h
+  utils.cpp
 )
 
 add_executable(${PROJECT_NAME}
