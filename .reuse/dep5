@@ -42,3 +42,8 @@ License: CC0-1.0
 Files: *.md 
 Copyright: None
 License: CC0-1.0
+
+# xmlFiles
+Files: xml/*.xml
+Copyright: None
+License: CC0-1.0

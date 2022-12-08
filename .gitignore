@@ -1,3 +1,6 @@
 .cache
 build
 /CMakeLists.txt.user
+
+# xml2cpp
+src/dbus/*_interface.*
