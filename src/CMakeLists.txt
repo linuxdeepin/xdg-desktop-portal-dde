@@ -24,6 +24,8 @@ set(SRC
   wallpaper.cpp
   notification.h
   notification.cpp
+  notificationservice.h
+  notificationservice.cpp
   settings.h
   settings.cpp
   inhibit.h
