@@ -32,6 +32,12 @@ set(SRC
   appchooser.cpp
   appchooserdialog.h
   appchooserdialog.cpp
+  appchooserdelegate.h
+  appchooserdelegate.cpp
+  appchoosermodel.h
+  appchoosermodel.cpp
+  iteminfo.h
+  iteminfo.cpp
   account.h
   account.cpp
   session.h
