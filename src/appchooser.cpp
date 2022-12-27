@@ -38,6 +38,8 @@ uint AppChooserPortal::ChooseApplication(const QDBusObjectPath &handle, const QS
                                 << "\n parent_window:" << parent_window
                                 << "\n choices:" << choices
                                 << "\n options:" << options;
+
+    Q_UNUSED(choices);
     // The app id that was selected the last time.
     DECLEAR_PARA(last_choice, toString);
     // Whether to make the dialog modal. Defaults to yes.

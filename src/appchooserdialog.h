@@ -7,17 +7,21 @@
 #include <QDialog>
 #include <QStringList>
 
+class QListView;
+class QPushButton;
 class AppChooserDialog : public QDialog
 {
 public:
     explicit AppChooserDialog(QWidget *parent = nullptr);
 
-    const QStringList &selectChoices() const ;
-
+    QStringList selectChoices();
     void updateChoices(const QStringList &choices);
     void setCurrentChoice(const QString &choice);
 
 private:
+    QListView *m_view;
     QStringList m_choices;
-    QStringList m_selectedChoices;
+
+    QPushButton *m_cancleBtn;
+    QPushButton *m_confirmBtn;
 };
