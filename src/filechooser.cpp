@@ -173,7 +173,8 @@ uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
         dirDialog.winId(); // Trigger window creation
 
         Utils::setParentWindow(&dirDialog, parent_window);
-        Request::makeClosableDialogRequest(handle, &dirDialog);
+        auto request = new Request(handle, QVariant(), &dirDialog);
+        connect(request, &Request::closeRequested, &dirDialog, &QFileDialog::reject);
 
         if (dirDialog.exec() != QDialog::Accepted) {
             return 1;
@@ -197,7 +198,8 @@ uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
     }
     QFileDialog fileDialog;
     Utils::setParentWindow(&fileDialog, parent_window);
-    Request::makeClosableDialogRequest(handle, &fileDialog);
+    auto request = new Request(handle, QVariant(), &fileDialog);
+    connect(request, &Request::closeRequested, &fileDialog, &QFileDialog::reject);
     fileDialog.setWindowTitle(title);
     fileDialog.setModal(modal);
     fileDialog.setFileMode(multiple ? QFileDialog::FileMode::ExistingFiles : QFileDialog::FileMode::ExistingFile);
@@ -281,7 +283,9 @@ uint FileChooserPortal::SaveFile(const QDBusObjectPath &handle,
 
     QFileDialog fileDialog;
     Utils::setParentWindow(&fileDialog, parent_window);
-    Request::makeClosableDialogRequest(handle, &fileDialog);
+    auto request = new Request(handle, QVariant(), &fileDialog);
+    connect(request, &Request::closeRequested, &fileDialog, &QFileDialog::reject);
+
     fileDialog.setWindowTitle(title);
     fileDialog.setModal(modal);
     fileDialog.setAcceptMode(QFileDialog::AcceptSave);
@@ -347,7 +351,10 @@ uint FileChooserPortal::SaveFiles(const QDBusObjectPath &handle, const QString &
 
     QFileDialog fileDialog;
     Utils::setParentWindow(&fileDialog, parent_window);
-    Request::makeClosableDialogRequest(handle, &fileDialog);
+
+    auto *request = new Request(handle, QVariant(), this);
+    connect(request, &Request::closeRequested, &fileDialog, &QFileDialog::reject);
+
     fileDialog.setWindowTitle(title);
     fileDialog.setModal(modal);
     fileDialog.setAcceptMode(QFileDialog::AcceptSave);
