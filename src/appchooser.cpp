@@ -62,7 +62,9 @@ uint AppChooserPortal::ChooseApplication(const QDBusObjectPath &handle, const QS
 
     m_appChooserDialogs.insert(handle.path(), dialog);
     Utils::setParentWindow(dialog->windowHandle(), parent_window);
-    Request::makeClosableDialogRequest(handle, dialog);
+
+    auto request = new Request(handle, QVariant(), dialog);
+    connect(request, &Request::closeRequested, dialog, &AppChooserDialog::reject);
 
     int result = dialog->exec();
 
