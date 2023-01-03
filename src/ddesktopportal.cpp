@@ -34,7 +34,6 @@ DDesktopPortal::DDesktopPortal(QObject *parent)
         m_settings = new SettingsPortal(this);
         m_inhibit = new InhibitPortal(this);
         m_account = new AccountPortal(this);
-        m_session = new SessionPortal(this);
         m_shortcut = new GlobalShortcutPortal(this);
         m_lockdown = new LockdownPortal(this);
         m_secret = new SecretPortal(this);

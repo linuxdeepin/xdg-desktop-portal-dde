@@ -7,6 +7,9 @@
 
 #include <QWidget>
 #include <QWindow>
+#include <QPair>
+#include <QList>
+#include <QVariantMap>
 
 #define DECLEAR_PARA_WITH_FALLBACK(para, toFun, fallback) \
     auto para = options.value(QStringLiteral("#para"), fallback).toFun();
@@ -20,5 +23,13 @@ public:
     static void setParentWindow(QWidget *w, const QString &parent_window);
     static void setParentWindow(QWindow *w, const QString &parent_window);
 };
+
+/// sa{sv}
+using Shortcut = QPair<QString, QVariantMap>;
+
+/// a(sa{sv})
+using Shortcuts = QList<Shortcut>;
+
+Q_DECLARE_METATYPE(Shortcuts)
 
 #endif // UTILS_H

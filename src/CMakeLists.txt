@@ -1,4 +1,4 @@
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
+find_package(QT NAMES Qt5 REQUIRED COMPONENTS Core)
 find_package(
   Qt${QT_VERSION_MAJOR} CONFIG REQUIRED COMPONENTS
   Core
@@ -23,8 +23,23 @@ qt5_add_dbus_interface(NotificationInterface
                       notification_interface
 )
 
+set(kglobalaccel_xml ${KGLOBALACCEL_DBUS_INTERFACES_DIR}/kf5_org.kde.KGlobalAccel.xml)
+set_source_files_properties(${kglobalaccel_xml} PROPERTIES
+    INCLUDE "kglobalaccel.h"
+    NO_NAMESPACE TRUE
+    CLASSNAME "KGlobalAccelInterface"
+)
+qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS ${kglobalaccel_xml} kglobalaccel_interface)
+
+set(kglobalaccel_component_xml ${KGLOBALACCEL_DBUS_INTERFACES_DIR}/kf5_org.kde.kglobalaccel.Component.xml)
+set_source_files_properties(${kglobalaccel_component_xml} PROPERTIES
+    INCLUDE "kglobalshortcutinfo.h"
+    NO_NAMESPACE TRUE
+    CLASSNAME "KGlobalAccelComponentInterface"
+)
+qt_add_dbus_interface(xdg_desktop_portal_kde_SRCS ${kglobalaccel_component_xml} kglobalaccel_component_interface)
+
 set(SRC
-  ${NotificationInterface}
   xdg-desktop-portal-dde.cpp
   ddesktopportal.h
   ddesktopportal.cpp
@@ -72,13 +87,22 @@ set(SRC
 )
 
 add_executable(${PROJECT_NAME}
-  ${SRC})
+  ${SRC}
+)
+
+target_sources(${PROJECT_NAME}
+PRIVATE 
+  ${NotificationInterface}
+  ${xdg_desktop_portal_kde_SRCS}
+)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
   Qt${QT_VERSION_MAJOR}::Core
   Qt${QT_VERSION_MAJOR}::Widgets
   Qt${QT_VERSION_MAJOR}::Gui
   Qt${QT_VERSION_MAJOR}::DBus
-  Qt${QT_VERSION_MAJOR}::Concurrent)
+  Qt${QT_VERSION_MAJOR}::Concurrent
+  KF5::GlobalAccel
+)
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
