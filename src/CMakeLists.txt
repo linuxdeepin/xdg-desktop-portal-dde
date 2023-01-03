@@ -8,25 +8,23 @@ find_package(
 #find_package(DtkCore)
 #find_package(DtkGui)
 #find_package(DtkWidget)
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-set(XML2CPP_DIR ${PROJECT_SOURCE_DIR}/src/dbus)
-
-function(generation_dbus_interface xml class_name class_file)
-    execute_process(COMMAND qdbusxml2cpp -c ${class_name} -p ${class_file} ${xml}
-            WORKING_DIRECTORY ${XML2CPP_DIR})
-endfunction(generation_dbus_interface)
-
-generation_dbus_interface(
-        ${CMAKE_SOURCE_DIR}/xml/org.freedesktop.Notifications.xml
-        NotificationService
-        ${XML2CPP_DIR}/notification_interface
+set_source_files_properties(
+                      ${CMAKE_SOURCE_DIR}/xml/org.freedesktop.Notifications.xml
+                      PROPERTIES
+                      CLASSNAME
+                        NotificationService
+                      NO_NAMESPACE
+                        OFF
+)
+qt5_add_dbus_interface(NotificationInterface
+                      ${CMAKE_SOURCE_DIR}/xml/org.freedesktop.Notifications.xml
+                      notification_interface
 )
 
-include_directories(${PROJECT_SOURCE_DIR}/src/dbus)
-aux_source_directory(${PROJECT_SOURCE_DIR}/src/dbus DBUS_INTERFACE_FILES)
-
 set(SRC
-  ${DBUS_INTERFACE_FILES}
+  ${NotificationInterface}
   xdg-desktop-portal-dde.cpp
   ddesktopportal.h
   ddesktopportal.cpp
