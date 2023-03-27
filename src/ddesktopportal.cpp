@@ -27,7 +27,7 @@ DDesktopPortal::DDesktopPortal(QObject *parent)
     , m_notification(new NotificationPortal(this))
 {
     const QByteArray &xdgCurrentDesktop = qgetenv("XDG_CURRENT_DESKTOP");
-    if (xdgCurrentDesktop.toLower() ==  "deepin") {
+    if (xdgCurrentDesktop == "DDE" || xdgCurrentDesktop.toLower() == "deepin") {
         m_screenshot = new ScreenshotPortal(this);
         m_screencast = new ScreenCastPortal(this);
         m_background = new BackgroundPortal(this);
