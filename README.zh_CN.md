@@ -2,21 +2,23 @@
 
 xdg-desktop-portal 在 Deepin desktop 环境的后端实现
 
-## 已经实现(预留的)接口
+## 接口实现状态
+
+### 已实现
 
 * org.freedesktop.impl.portal.Screenshot
 * org.freedesktop.impl.portal.WallPaper
 * org.freedesktop.impl.portal.Notification
 * org.freedesktop.impl.portal.FileChooser
 
-## 目标实现的接口
+### 待实现
 
 * org.freedesktop.impl.portal.Screenshot
 * org.freedesktop.impl.portal.WallPaper
 * org.freedesktop.impl.portal.Notification
 * org.freedesktop.impl.portal.FileChooser
 
-## 以后可能会实现的接口
+### 考虑实现
 
 * org.freedesktop.impl.portal.Email
 * org.freedesktop.impl.portal.DynamicLauncher
