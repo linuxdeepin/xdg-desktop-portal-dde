@@ -2,21 +2,23 @@
 
 A backend implement for xdg-desktop-portal on Deepin desktop environment
 
-## Interface have realize
+## Interface Status
+
+### Implemented
 
 * org.freedesktop.impl.portal.Screenshot
 * org.freedesktop.impl.portal.WallPaper
 * org.freedesktop.impl.portal.Notification
 * org.freedesktop.impl.portal.FileChooser
 
-## All will realize
+### TODO
 
 * org.freedesktop.impl.portal.Screenshot
 * org.freedesktop.impl.portal.WallPaper
 * org.freedesktop.impl.portal.Notification
 * org.freedesktop.impl.portal.FileChooser
 
-## Maybe will realize in the future
+### TBD
 
 * org.freedesktop.impl.portal.Email
 * org.freedesktop.impl.portal.DynamicLauncher
