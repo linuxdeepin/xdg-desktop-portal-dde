@@ -6,24 +6,22 @@
 
 #include <QDBusAbstractAdaptor>
 #include <QDBusObjectPath>
-#include <qobjectdefs.h>
+
 
 class ScreenCastPortal : public QDBusAbstractAdaptor
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.ScreenCast")
-    //Q_PROPERTY(uint version READ version CONSTANT)
-    //Q_PROPERTY(uint AvailableSourceTypes READ AvailableSourceTypes CONSTANT)
-    //Q_PROPERTY(uint AvailableCursorModes READ AvailableCursorModes CONSTANT)
-
+    Q_PROPERTY(uint version READ version CONSTANT)
+    Q_PROPERTY(uint AvailableSourceTypes READ AvailableSourceTypes CONSTANT)
+    Q_PROPERTY(uint AvailableCursorModes READ AvailableCursorModes CONSTANT)
 public:
     enum SourceType {
         Any = 0,
-        Monitor = 1,
-        Window = 2,
-        Virtual = 4,
+        Monitor,
+        Window
     };
-    Q_ENUM(SourceType)
+    Q_ENUM(SourceType);
     Q_DECLARE_FLAGS(SourceTypes, SourceType)
 
     enum CursorModes {
@@ -31,20 +29,16 @@ public:
         Embedded = 2,
         Metadata = 4,
     };
-    Q_ENUM(CursorModes)
-
-    enum PersistMode {
-        NoPersist = 0,
-        PersistWhilerunning = 1,
-        PersistUntilRevoked = 2,
-    };
-
-    Q_ENUM(PersistMode)
+    Q_ENUM(CursorModes);
 
     explicit ScreenCastPortal(QObject *parent);
-    ~ScreenCastPortal() = default;
+    ~ScreenCastPortal();
 
-public slots:
+    uint version() const { return 1; }
+    uint AvailableSourceTypes() const { return Monitor; };
+    uint AvailableCursorModes() const { return Hidden | Embedded; };
+
+public Q_SLOTS:
     uint CreateSession(const QDBusObjectPath &handle,
                        const QDBusObjectPath &session_handle,
                        const QString &app_id,

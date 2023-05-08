@@ -14,6 +14,7 @@ class InhibitPortal;
 class SettingsPortal;
 class AccountPortal;
 class SessionPortal;
+class RemoteDesktopPortal;
 class GlobalShortcutPortal;
 class LockdownPortal;
 class SecretPortal;
@@ -40,6 +41,7 @@ private:
     SettingsPortal *m_settings = nullptr;
     AccountPortal *m_account = nullptr;
     SessionPortal *m_session = nullptr;
+    RemoteDesktopPortal *m_remote = nullptr;
     GlobalShortcutPortal *m_shortcut = nullptr;
     LockdownPortal *m_lockdown = nullptr;
     SecretPortal *m_secret = nullptr;
