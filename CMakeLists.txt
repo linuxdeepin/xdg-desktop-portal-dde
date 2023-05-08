@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
+set(KF5_MIN_VERSION "5.54")
 
 project(xdg-desktop-portal-dde
   VERSION 1.0.0
@@ -11,7 +12,6 @@ if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX /usr)
 endif ()
 include(GNUInstallDirs)
-
 
 add_subdirectory(src)
 

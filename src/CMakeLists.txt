@@ -5,9 +5,18 @@ find_package(
   Concurrent
   DBus
   Widgets)
-#find_package(DtkCore)
-#find_package(DtkGui)
-#find_package(DtkWidget)
+find_package(ECM ${KF5_MIN_VERSION} REQUIRED NO_MODULE)
+set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
+
+find_package(KF5 ${KF5_MIN_VERSION} REQUIRED
+    I18n
+    Declarative
+    Notifications
+    Wayland
+)
+
+find_package(KF5I18n CONFIG REQUIRED)
+find_package(Wayland 1.15 REQUIRED COMPONENTS Client)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set_source_files_properties(
@@ -30,8 +39,6 @@ set(SRC
   ddesktopportal.cpp
   screenshot.h
   screenshot.cpp
-  screencast.h
-  screencast.cpp
   background.h
   background.cpp
   filechooser.h
@@ -69,7 +76,20 @@ set(SRC
   dbushelpers.h
   utils.h
   utils.cpp
-)
+  screencast.cpp
+  screencasting.cpp
+  screencastwidget.cpp
+  screenchooserdialog.cpp
+  remotedesktop.cpp
+  remotedesktopdialog.cpp
+  waylandintegration.cpp
+  wayland-zkde-screencast-unstable-v1-protocol.c
+  qwayland-zkde-screencast-unstable-v1.cpp)
+
+QT5_WRAP_UI(SRC
+  screenchooserdialog.ui
+  remotedesktopdialog.ui)
+
 
 add_executable(${PROJECT_NAME}
   ${SRC})
@@ -79,6 +99,13 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   Qt${QT_VERSION_MAJOR}::Widgets
   Qt${QT_VERSION_MAJOR}::Gui
   Qt${QT_VERSION_MAJOR}::DBus
-  Qt${QT_VERSION_MAJOR}::Concurrent)
+  Qt${QT_VERSION_MAJOR}::Concurrent
+  KF5::I18n
+  KF5::WaylandClient
+  KF5::Notifications
+  Wayland::Client
+  epoxy
+  pipewire-0.2
+  gbm)
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
