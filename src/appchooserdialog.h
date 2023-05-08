@@ -1,27 +1,37 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// Copyright © 2016-2018 Red Hat, Inc
+// SPDX-FileCopyrightText: 2023 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-#pragma once
+#ifndef XDG_DESKTOP_PORTAL_KDE_APPCHOOSER_DIALOG_H
+#define XDG_DESKTOP_PORTAL_KDE_APPCHOOSER_DIALOG_H
 
+#include <QAbstractListModel>
 #include <QDialog>
-#include <QStringList>
 
-class QListView;
-class QPushButton;
+class AppChooserDialogItem;
+class QGridLayout;
+
 class AppChooserDialog : public QDialog
 {
+    Q_OBJECT
 public:
-    explicit AppChooserDialog(QWidget *parent = nullptr);
+    AppChooserDialog(const QStringList &choices, const QString &defaultApp, const QString &fileName, QDialog *parent = nullptr, Qt::WindowFlags flags = {});
+    ~AppChooserDialog();
 
-    QStringList selectChoices();
     void updateChoices(const QStringList &choices);
-    void setCurrentChoice(const QString &choice);
+
+    QString selectedApplication() const;
 
 private:
-    QListView *m_view;
-    QStringList m_choices;
+    void addDialogItems();
 
-    QPushButton *m_cancleBtn;
-    QPushButton *m_confirmBtn;
+    QStringList m_choices;
+    QString m_defaultApp;
+    QString m_selectedApplication;
+    QGridLayout *m_gridLayout;
 };
+
+#endif // XDG_DESKTOP_PORTAL_KDE_APPCHOOSER_DIALOG_H
+
+

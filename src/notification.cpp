@@ -1,46 +1,90 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// Copyright © 2016 Red Hat, Inc
+// SPDX-FileCopyrightText: 2023 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "notification.h"
 
-#include "notification_interface.h"
-
-#include <QDateTime>
+#include <QDBusArgument>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusMetaType>
 #include <QLoggingCategory>
 
-Q_LOGGING_CATEGORY(XdgDesktopDDENotification, "xdg-dde-notification")
+QDBusArgument &operator<<(QDBusArgument &argument, const NotificationPortal::PortalIcon &icon)
+{
+    argument.beginStructure();
+    argument << icon.str << icon.data;
+    argument.endStructure();
+    return argument;
+}
 
-static const uint defaultTimeout = 5;
+const QDBusArgument &operator>>(const QDBusArgument &argument, NotificationPortal::PortalIcon &icon)
+{
+    argument.beginStructure();
+    argument >> icon.str >> icon.data;
+    argument.endStructure();
+    return argument;
+}
+
+Q_DECLARE_METATYPE(NotificationPortal::PortalIcon)
+
+Q_LOGGING_CATEGORY(XdgDesktopPortalKdeNotification, "xdp-kde-notification")
 
 NotificationPortal::NotificationPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
-    , m_service(new NotificationService("org.freedesktop.Notifications",
-                                            "/org/freedesktop/Notifications",
-                                            QDBusConnection::sessionBus(), this))
 {
-    qCDebug(XdgDesktopDDENotification) << "init NotificationPortal";
-
-    connect(m_service, &NotificationService::ActionInvoked, this, &NotificationPortal::actionInvoked);
+    qDBusRegisterMetaType<PortalIcon>();
 }
 
-void NotificationPortal::AddNotification(const QString &app_id, const QString &id, const QVariantMap &notification)
+NotificationPortal::~NotificationPortal()
 {
-    if (!m_service->isValid()) {
-        qCWarning(XdgDesktopDDENotification) << "notification service has error!";
+}
+
+void NotificationPortal::AddNotification(const QString &app_id,
+                                   const QString &id,
+                                   const QVariantMap &notification)
+{
+    qCDebug(XdgDesktopPortalKdeNotification) << "AddNotification called with parameters:";
+    qCDebug(XdgDesktopPortalKdeNotification) << "    app_id: " << app_id;
+    qCDebug(XdgDesktopPortalKdeNotification) << "    id: " << id;
+    qCDebug(XdgDesktopPortalKdeNotification) << "    notification: " << notification;
+
+    // We have to use "notification" as an ID because any other ID will not be configured
+    KNotification *notify = new KNotification(QStringLiteral("notification"), KNotification::CloseOnTimeout | KNotification::DefaultEvent, this);
+    if (notification.contains(QStringLiteral("title"))) {
+        notify->setTitle(notification.value(QStringLiteral("title")).toString());
     }
-
-    qCDebug(XdgDesktopDDENotification) << "notification add start";
-    QString title = notification.value("title", QString()).toString();
-    QString body = notification.value("body", QString()).toString();
-    QString icon = notification.value("icon", QString()).toString();
-
-    QStringList notificationActions;
-    if (notification.contains(QStringLiteral("default-action")) && notification.contains(QStringLiteral("default-action-target"))) {
-        // default action is conveniently mapped to action number 0 so it uses the same action invocation method as the others
-        notificationActions.append("default");
+    if (notification.contains(QStringLiteral("body"))) {
+        notify->setText(notification.value(QStringLiteral("body")).toString());
     }
-
+    if (notification.contains(QStringLiteral("icon"))) {
+        QVariant iconVariant = notification.value(QStringLiteral("icon"));
+        if (iconVariant.type() == QVariant::String) {
+            notify->setIconName(iconVariant.toString());
+        } else {
+            QDBusArgument argument = iconVariant.value<QDBusArgument>();
+            PortalIcon icon = qdbus_cast<PortalIcon>(argument);
+            QVariant iconData = icon.data.variant();
+            if (icon.str == QStringLiteral("themed") && iconData.type() == QVariant::StringList) {
+                notify->setIconName(iconData.toStringList().first());
+            } else if (icon.str == QStringLiteral("bytes") && iconData.type() == QVariant::ByteArray) {
+                QPixmap pixmap;
+                if (pixmap.loadFromData(iconData.toByteArray(), "PNG")) {
+                    notify->setPixmap(pixmap);
+                }
+            }
+        }
+    }
+    if (notification.contains(QStringLiteral("priority"))) {
+        // TODO KNotification has no option for priority
+    }
+    if (notification.contains(QStringLiteral("default-action"))) {
+        // TODO KNotification has no option for default action
+    }
+    if (notification.contains(QStringLiteral("default-action-target"))) {
+        // TODO KNotification has no option for default action
+    }
     if (notification.contains(QStringLiteral("buttons"))) {
         QList<QVariantMap> buttons;
         QDBusArgument dbusArgument = notification.value(QStringLiteral("buttons")).value<QDBusArgument>();
@@ -49,68 +93,72 @@ void NotificationPortal::AddNotification(const QString &app_id, const QString &i
         }
 
         QStringList actions;
-        for (const QVariantMap &button : qAsConst(buttons)) {
+        for (const QVariantMap &button : buttons) {
             actions << button.value(QStringLiteral("label")).toString();
         }
 
         if (!actions.isEmpty()) {
-            notificationActions.append(actions);
+            notify->setActions(actions);
         }
     }
 
-    // default 5s
-    int expireTimeout = defaultTimeout;
-    uint defaultId = 0;
-    uint nId = m_service->Notify(app_id, defaultId, icon, QString(), body, notificationActions, QVariantMap(), expireTimeout);
+    notify->setProperty("app_id", app_id);
+    notify->setProperty("id", id);
+    connect(notify, static_cast<void (KNotification::*)(uint)>(&KNotification::activated), this, &NotificationPortal::notificationActivated);
+    connect(notify, &KNotification::closed, this, &NotificationPortal::notificationClosed);
+    notify->sendEvent();
 
-    NotificationInfo info;
-    info.appId = app_id;
-    info.id = id;
-    info.timestamp = QDateTime::currentSecsSinceEpoch();
-
-    m_idInfoMap.insert(nId, info);
-    m_idMaps.insert(id, nId);
-
-    clearTimeoutData();
+    m_notifications.insert(QStringLiteral("%1:%2").arg(app_id, id), notify);
 }
 
-void NotificationPortal::RemoveNotification(const QString &app_id, const QString &id)
+void NotificationPortal::notificationActivated(uint action)
 {
-    Q_UNUSED(app_id)
-    qCDebug(XdgDesktopDDENotification) << "notification remove start";
+    KNotification *notify = qobject_cast<KNotification*>(sender());
 
-    if (!m_service->isValid() || m_idMaps.contains(id)) {
+    if (!notify) {
         return;
     }
 
-    m_service->CloseNotification(m_idMaps[id]);
-}
+    const QString appId = notify->property("app_id").toString();
+    const QString id = notify->property("id").toString();
 
-void NotificationPortal::actionInvoked(uint nId, const QString &action)
-{
-    if (!m_idInfoMap.contains(nId)) {
-        return;
-    }
+    qCDebug(XdgDesktopPortalKdeNotification) << "Notification activated:";
+    qCDebug(XdgDesktopPortalKdeNotification) << "    app_id: " << appId;
+    qCDebug(XdgDesktopPortalKdeNotification) << "    id: " << id;
+    qCDebug(XdgDesktopPortalKdeNotification) << "    action: " << action;
 
-    const NotificationInfo &info = m_idInfoMap[nId];
-
-    // signals:void ActionInvoked(const QString &app_id, const QString &id, const QString &action, const QList<QVariant> &) const;
     QDBusMessage message = QDBusMessage::createSignal(QStringLiteral("/org/freedesktop/portal/desktop"),
                                                       QStringLiteral("org.freedesktop.impl.portal.Notification"),
                                                       QStringLiteral("ActionInvoked"));
-    message << info.appId << info.id << action << QVariantList();
+    message << appId << id << QString::number(action) << QVariantList();
     QDBusConnection::sessionBus().send(message);
 }
 
-void NotificationPortal::clearTimeoutData()
+void NotificationPortal::RemoveNotification(const QString &app_id,
+                                      const QString &id)
 {
-    qint64 timestamp = QDateTime::currentSecsSinceEpoch();
-    QMapIterator<uint, NotificationInfo> it(m_idInfoMap);
-    while (it.hasNext()) {
-        it.next();
+    qCDebug(XdgDesktopPortalKdeNotification) << "RemoveNotification called with parameters:";
+    qCDebug(XdgDesktopPortalKdeNotification) << "    app_id: " << app_id;
+    qCDebug(XdgDesktopPortalKdeNotification) << "    id: " << id;
 
-        if (timestamp - it.value().timestamp > defaultTimeout) {
-            m_idInfoMap.remove(it.key());
-        }
+    KNotification *notify = m_notifications.take(QStringLiteral("%1:%2").arg(app_id, id));
+    if (notify) {
+        notify->close();
+        notify->deleteLater();
     }
+}
+
+void NotificationPortal::notificationClosed()
+{
+    KNotification *notify = qobject_cast<KNotification*>(sender());
+
+    if (!notify) {
+        return;
+    }
+
+    const QString appId = notify->property("app_id").toString();
+    const QString id = notify->property("id").toString();
+
+    m_notifications.remove(QStringLiteral("%1:%2").arg(appId, id));
+    notify->deleteLater();
 }

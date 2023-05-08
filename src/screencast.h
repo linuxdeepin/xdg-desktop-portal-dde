@@ -1,50 +1,36 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// Copyright © 2018 Red Hat, Inc
+// SPDX-FileCopyrightText: 2023 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-#pragma once
+#ifndef XDG_DESKTOP_PORTAL_KDE_SCREENCAST_H
+#define XDG_DESKTOP_PORTAL_KDE_SCREENCAST_H
 
 #include <QDBusAbstractAdaptor>
 #include <QDBusObjectPath>
-#include <qobjectdefs.h>
+
+class ScreenCastCommon;
 
 class ScreenCastPortal : public QDBusAbstractAdaptor
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.ScreenCast")
-    //Q_PROPERTY(uint version READ version CONSTANT)
-    //Q_PROPERTY(uint AvailableSourceTypes READ AvailableSourceTypes CONSTANT)
-    //Q_PROPERTY(uint AvailableCursorModes READ AvailableCursorModes CONSTANT)
-
+    Q_PROPERTY(uint version READ version)
+    Q_PROPERTY(uint AvailableSourceTypes READ AvailableSourceTypes)
 public:
     enum SourceType {
         Any = 0,
-        Monitor = 1,
-        Window = 2,
-        Virtual = 4,
+        Monitor,
+        Window
     };
-    Q_ENUM(SourceType)
-    Q_DECLARE_FLAGS(SourceTypes, SourceType)
-
-    enum CursorModes {
-        Hidden = 1,
-        Embedded = 2,
-        Metadata = 4,
-    };
-    Q_ENUM(CursorModes)
-
-    enum PersistMode {
-        NoPersist = 0,
-        PersistWhilerunning = 1,
-        PersistUntilRevoked = 2,
-    };
-
-    Q_ENUM(PersistMode)
 
     explicit ScreenCastPortal(QObject *parent);
-    ~ScreenCastPortal() = default;
+    ~ScreenCastPortal();
 
-public slots:
+    uint version() const { return 1; }
+    uint AvailableSourceTypes() const { return Monitor; };
+
+public Q_SLOTS:
     uint CreateSession(const QDBusObjectPath &handle,
                        const QDBusObjectPath &session_handle,
                        const QString &app_id,
@@ -64,3 +50,6 @@ public slots:
                const QVariantMap &options,
                QVariantMap &results);
 };
+
+#endif // XDG_DESKTOP_PORTAL_KDE_SCREENCAST_H
+

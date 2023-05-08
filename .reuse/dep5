@@ -4,7 +4,7 @@ Upstream-Contact: UnionTech Software Technology Co., Ltd. <>
 Source: https://github.com/linuxdeepin/dtkcore
 
 # ci
-Files: .github/* *.yml *.yaml
+Files: .github/* *.yml *.yaml *.ui
 Copyright: None
 License: CC0-1.0
 
@@ -40,6 +40,11 @@ License: CC0-1.0
 
 # docs 
 Files: *.md 
+Copyright: None
+License: CC0-1.0
+
+# data 
+Files: data/*
 Copyright: None
 License: CC0-1.0
 

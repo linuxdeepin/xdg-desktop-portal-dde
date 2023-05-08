@@ -1,64 +1,65 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// Copyright © 2017 Red Hat, Inc
+// SPDX-FileCopyrightText: 2023 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "inhibit.h"
+#include "request.h"
 
-#include <QLoggingCategory>
+#include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
 #include <QDBusPendingReply>
+#include <QDBusPendingCallWatcher>
+#include <QLoggingCategory>
 
-#include "request.h"
-
-Q_LOGGING_CATEGORY(XdgDesktopDDEInhibit, "xdg-dde-inhibit")
-
-const QString sessionManagerService = QStringLiteral("org.deepin.dde.SessionManager1");
-const QString sessionManagerPath = QStringLiteral("/com/deepin/SessionManager");
-const QString sessionManagerInterface = QStringLiteral("com.deepin.SessionManager");
-
-enum { INHIBIT_LOGOUT = 1, INHIBIT_SWITCH = 2, INHIBIT_SUSPEND = 4, INHIBIT_IDLE = 8 };
+Q_LOGGING_CATEGORY(XdgDesktopPortalKdeInhibit, "xdp-kde-inhibit")
 
 InhibitPortal::InhibitPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {
-    qCDebug(XdgDesktopDDEInhibit) << "Inhibit init";
 }
 
-void InhibitPortal::Inhibit(
-    const QDBusObjectPath &handle, const QString &app_id, const QString &window, uint flags, const QVariantMap &options)
+InhibitPortal::~InhibitPortal()
 {
-    qCDebug(XdgDesktopDDEInhibit) << "Handle: " << handle.path();
-    qCDebug(XdgDesktopDDEInhibit) << app_id << "request Inhibit";
+}
 
-    QString reason = options.value(QStringLiteral("reason")).toString();
-    qCDebug(XdgDesktopDDEInhibit) << "reason: " << reason;
+void InhibitPortal::Inhibit(const QDBusObjectPath &handle, const QString &app_id, const QString &window, uint flags, const QVariantMap &options)
+{
+    qCDebug(XdgDesktopPortalKdeInhibit) << "Inhibit called with parameters:";
+    qCDebug(XdgDesktopPortalKdeInhibit) << "    handle: " << handle.path();
+    qCDebug(XdgDesktopPortalKdeInhibit) << "    app_id: " << app_id;
+    qCDebug(XdgDesktopPortalKdeInhibit) << "    window: " << window;
+    qCDebug(XdgDesktopPortalKdeInhibit) << "    flags: " << flags;
+    qCDebug(XdgDesktopPortalKdeInhibit) << "    options: " << options;
 
-    QDBusMessage message = QDBusMessage::createMethodCall(
-        sessionManagerService, sessionManagerPath, sessionManagerInterface, QStringLiteral("Inhibit"));
-    message << app_id << window.toUInt() << reason << flags;
+    QDBusMessage message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.Solid.PowerManagement"),
+                                                          QStringLiteral("/org/kde/Solid/PowerManagement/PolicyAgent"),
+                                                          QStringLiteral("org.kde.Solid.PowerManagement.PolicyAgent"),
+                                                          QStringLiteral("AddInhibition"));
+    //         interrupt session (1)
+    message << (uint)1 << app_id << options.value(QStringLiteral("reason")).toString();
 
     QDBusPendingCall pendingCall = QDBusConnection::sessionBus().asyncCall(message);
     QDBusPendingCallWatcher *watcher = new QDBusPendingCallWatcher(pendingCall);
-    connect(watcher, &QDBusPendingCallWatcher::finished, [handle, this](QDBusPendingCallWatcher *watcher) {
+    connect(watcher, &QDBusPendingCallWatcher::finished, [handle, this] (QDBusPendingCallWatcher *watcher) {
         QDBusPendingReply<uint> reply = *watcher;
         if (reply.isError()) {
-            qCDebug(XdgDesktopDDEInhibit) << "Inhibition error: " << reply.error().message();
-            return;
+            qCDebug(XdgDesktopPortalKdeInhibit) << "Inhibition error: " << reply.error().message();
+        } else {
+            QDBusConnection sessionBus = QDBusConnection::sessionBus();
+            Request *request = new Request(this, QStringLiteral("org.freedesktop.impl.portal.Inhibit"), QVariant(reply.value()));
+            if (sessionBus.registerVirtualObject(handle.path(), request, QDBusConnection::VirtualObjectRegisterOption::SubPath)) {
+                connect(request, &Request::closeRequested, [request, handle] () {
+                    QDBusConnection::sessionBus().unregisterObject(handle.path());
+                    request->deleteLater();
+                });
+            } else {
+                qCDebug(XdgDesktopPortalKdeInhibit) << sessionBus.lastError().message();
+                qCDebug(XdgDesktopPortalKdeInhibit) << "Failed to register request object with inhibition";
+                request->deleteLater();
+            }
         }
-
-        auto *request = new Request(handle, QVariant(reply.value()), this);
-        connect(request, &Request::closeRequested, this, &InhibitPortal::onCloseRequested);
     });
-}
-
-void InhibitPortal::onCloseRequested(const QVariant &data)
-{
-    quint32 cookie = data.toUInt();
-
-    QDBusMessage message = QDBusMessage::createMethodCall(
-        sessionManagerService, sessionManagerPath, sessionManagerInterface, QStringLiteral("Uninhibit"));
-    message << cookie;
-    QDBusConnection::sessionBus().asyncCall(message);
 }

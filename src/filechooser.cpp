@@ -1,27 +1,31 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// Copyright © 2016-2018 Red Hat, Inc
+// SPDX-FileCopyrightText: 2023 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "filechooser.h"
-#include "request.h"
 #include "utils.h"
 
-#include <QLoggingCategory>
-#include <QFileDialog>
+#include <QDialogButtonBox>
 #include <QDBusMetaType>
+#include <QDBusArgument>
+#include <QLoggingCategory>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QUrl>
+
+#include <KLocalizedString>
+#include <KFileWidget>
+
+Q_LOGGING_CATEGORY(XdgDesktopPortalKdeFileChooser, "xdp-kde-file-chooser")
 
 // Keep in sync with qflatpakfiledialog from flatpak-platform-plugin
 Q_DECLARE_METATYPE(FileChooserPortal::Filter)
 Q_DECLARE_METATYPE(FileChooserPortal::Filters)
 Q_DECLARE_METATYPE(FileChooserPortal::FilterList)
 Q_DECLARE_METATYPE(FileChooserPortal::FilterListList)
-// used for options - choices
-Q_DECLARE_METATYPE(FileChooserPortal::Choice)
-Q_DECLARE_METATYPE(FileChooserPortal::Choices)
-Q_DECLARE_METATYPE(FileChooserPortal::Option)
-Q_DECLARE_METATYPE(FileChooserPortal::OptionList)
 
-QDBusArgument &operator<<(QDBusArgument &arg, const FileChooserPortal::Filter &filter)
+QDBusArgument &operator << (QDBusArgument &arg, const FileChooserPortal::Filter &filter)
 {
     arg.beginStructure();
     arg << filter.type << filter.filterString;
@@ -29,7 +33,7 @@ QDBusArgument &operator<<(QDBusArgument &arg, const FileChooserPortal::Filter &f
     return arg;
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &arg, FileChooserPortal::Filter &filter)
+const QDBusArgument &operator >> (const QDBusArgument &arg, FileChooserPortal::Filter &filter)
 {
     uint type;
     QString filterString;
@@ -42,7 +46,7 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, FileChooserPortal::Fil
     return arg;
 }
 
-QDBusArgument &operator<<(QDBusArgument &arg, const FileChooserPortal::FilterList &filterList)
+QDBusArgument &operator << (QDBusArgument &arg, const FileChooserPortal::FilterList &filterList)
 {
     arg.beginStructure();
     arg << filterList.userVisibleName << filterList.filters;
@@ -50,7 +54,7 @@ QDBusArgument &operator<<(QDBusArgument &arg, const FileChooserPortal::FilterLis
     return arg;
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &arg, FileChooserPortal::FilterList &filterList)
+const QDBusArgument &operator >> (const QDBusArgument &arg, FileChooserPortal::FilterList &filterList)
 {
     QString userVisibleName;
     FileChooserPortal::Filters filters;
@@ -63,389 +67,234 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, FileChooserPortal::Fil
     return arg;
 }
 
-QDBusArgument &operator<<(QDBusArgument &arg, const FileChooserPortal::Choice &choice)
+FileDialog::FileDialog(QDialog *parent, Qt::WindowFlags flags)
+    : QDialog(parent, flags)
+    , m_fileWidget(new KFileWidget(QUrl(), this))
 {
-    arg.beginStructure();
-    arg << choice.id << choice.value;
-    arg.endStructure();
-    return arg;
+    setLayout(new QVBoxLayout);
+    layout()->addWidget(m_fileWidget);
+
+    m_buttons = new QDialogButtonBox(this);
+    m_buttons->addButton(m_fileWidget->okButton(), QDialogButtonBox::AcceptRole);
+    m_buttons->addButton(m_fileWidget->cancelButton(), QDialogButtonBox::RejectRole);
+    connect(m_buttons, &QDialogButtonBox::rejected, m_fileWidget, &KFileWidget::slotCancel);
+    connect(m_fileWidget->okButton(), &QAbstractButton::clicked, m_fileWidget, &KFileWidget::slotOk);
+    connect(m_fileWidget, &KFileWidget::accepted, m_fileWidget, &KFileWidget::accept);
+    connect(m_fileWidget, &KFileWidget::accepted, this, &QDialog::accept);
+    connect(m_fileWidget->cancelButton(), &QAbstractButton::clicked, this, &QDialog::reject);
+    layout()->addWidget(m_buttons);
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &arg, FileChooserPortal::Choice &choice)
+FileDialog::~FileDialog()
 {
-    QString id;
-    QString value;
-    arg.beginStructure();
-    arg >> id >> value;
-    choice.id = id;
-    choice.value = value;
-    arg.endStructure();
-    return arg;
 }
-
-QDBusArgument &operator<<(QDBusArgument &arg, const FileChooserPortal::Option &option)
-{
-    arg.beginStructure();
-    arg << option.id << option.label << option.choices << option.initialChoiceId;
-    arg.endStructure();
-    return arg;
-}
-
-const QDBusArgument &operator>>(const QDBusArgument &arg, FileChooserPortal::Option &option)
-{
-    QString id;
-    QString label;
-    FileChooserPortal::Choices choices;
-    QString initialChoiceId;
-    arg.beginStructure();
-    arg >> id >> label >> choices >> initialChoiceId;
-    option.id = id;
-    option.label = label;
-    option.choices = choices;
-    option.initialChoiceId = initialChoiceId;
-    arg.endStructure();
-    return arg;
-}
-
-Q_LOGGING_CATEGORY(fileChooserCategory, "xdg-dde-filechooser")
 
 FileChooserPortal::FileChooserPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {
-    qCDebug(fileChooserCategory) << "init dde-filechooser";
-
     qDBusRegisterMetaType<Filter>();
     qDBusRegisterMetaType<Filters>();
     qDBusRegisterMetaType<FilterList>();
     qDBusRegisterMetaType<FilterListList>();
-    qDBusRegisterMetaType<Choice>();
-    qDBusRegisterMetaType<Choices>();
-    qDBusRegisterMetaType<Option>();
-    qDBusRegisterMetaType<OptionList>();
+}
+
+FileChooserPortal::~FileChooserPortal()
+{
 }
 
 uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
-                                 const QString &app_id,
-                                 const QString &parent_window,
-                                 const QString &title,
-                                 const QVariantMap &options,
-                                 QVariantMap &results)
+                           const QString &app_id,
+                           const QString &parent_window,
+                           const QString &title,
+                           const QVariantMap &options,
+                           QVariantMap &results)
 {
     Q_UNUSED(app_id);
 
-    qCDebug(fileChooserCategory) << __FUNCTION__ << "args:"
-                                 << "\n handle:" << handle.path()
-                                 << "\n app_id:" << app_id
-                                 << "\n parent_window:" << parent_window
-                                 << "\n title:" << title
-                                 << "\n options:" << options
-                                 << "\n results:" << results;
+    qCDebug(XdgDesktopPortalKdeFileChooser) << "OpenFile called with parameters:";
+    qCDebug(XdgDesktopPortalKdeFileChooser) << "    handle: " << handle.path();
+    qCDebug(XdgDesktopPortalKdeFileChooser) << "    parent_window: " << parent_window;
+    qCDebug(XdgDesktopPortalKdeFileChooser) << "    title: " << title;
+    qCDebug(XdgDesktopPortalKdeFileChooser) << "    options: " << options;
 
-    // Whether to make the dialog modal. Default is yes.
-    DECLEAR_PARA_WITH_FALLBACK(modal, toBool, true);
-    // Whether to allow selection of multiple files. Default is no.
-    DECLEAR_PARA_WITH_FALLBACK(multiple, toBool, false);
-    // Whether to select for folders instead of files. Default is to select files.
-    DECLEAR_PARA_WITH_FALLBACK(directory, toBool, false);
-    // The label for the accept button. Mnemonic underlines are allowed.
-    const QString &acceptText = parseAcceptLabel(options);
-
-    QStringList nameFilters;
-    QStringList mimeTypeFilters;
-    QString selectedMimeTypeFilter;
-    // mapping between filter strings and actual filters
-    QMap<QString, FilterList> allFilters;
-
-    parseFilters(options, nameFilters, mimeTypeFilters, allFilters, selectedMimeTypeFilter);
-
-    // open directory
-    if (directory && !options.contains(QStringLiteral("choices"))) {
-        QFileDialog dirDialog;
-        dirDialog.setWindowTitle(title);
-        dirDialog.setModal(modal);
-        dirDialog.setFileMode(QFileDialog::Directory);
-        dirDialog.setOptions(QFileDialog::ShowDirsOnly);
-        dirDialog.setSupportedSchemes(QStringList{QStringLiteral("file")});
-        if (!acceptText.isEmpty()) {
-            dirDialog.setLabelText(QFileDialog::Accept, acceptText);
-        }
-
-        dirDialog.winId(); // Trigger window creation
-
-        Utils::setParentWindow(&dirDialog, parent_window);
-        auto request = new Request(handle, QVariant(), &dirDialog);
-        connect(request, &Request::closeRequested, &dirDialog, &QFileDialog::reject);
-
-        if (dirDialog.exec() != QDialog::Accepted) {
-            return 1;
-        }
-
-        const auto urls = dirDialog.selectedUrls();
-        if (urls.empty()) {
-            return 2;
-        }
-
-        results.insert(QStringLiteral("uris"), QUrl::toStringList(urls, QUrl::FullyEncoded));
-        results.insert(QStringLiteral("writable"), true);
-
-        return 0;
-    }
-
-    // handle choices
-    if (options.contains(QStringLiteral("choices"))) {
-        OptionList optionList = qdbus_cast<OptionList>(options.value(QStringLiteral("choices")));
-        //        optionsWidget.reset(CreateChoiceControls(optionList, checkboxes, comboboxes));
-    }
-    QFileDialog fileDialog;
-    Utils::setParentWindow(&fileDialog, parent_window);
-    auto request = new Request(handle, QVariant(), &fileDialog);
-    connect(request, &Request::closeRequested, &fileDialog, &QFileDialog::reject);
-    fileDialog.setWindowTitle(title);
-    fileDialog.setModal(modal);
-    fileDialog.setFileMode(multiple ? QFileDialog::FileMode::ExistingFiles : QFileDialog::FileMode::ExistingFile);
-    if (!acceptText.isEmpty()) {
-        fileDialog.setLabelText(QFileDialog::Accept, acceptText);
-    }
-
-    bool bMimeFilters = false;
-    if (!mimeTypeFilters.isEmpty()) {
-        fileDialog.setMimeTypeFilters(mimeTypeFilters);
-        fileDialog.selectMimeTypeFilter(selectedMimeTypeFilter);
-        bMimeFilters = true;
-    } else if (!nameFilters.isEmpty()) {
-        fileDialog.setNameFilters(nameFilters);
-    }
-
-    if (fileDialog.exec() != QDialog::Accepted)
-        return 1;
-
-    const auto &urls = fileDialog.selectedUrls();
-    if (urls.isEmpty()) {
-        qCDebug(fileChooserCategory) << "Failed to open file: no local file selected";
-        return 2;
-    }
-
-    results.insert(QStringLiteral("uris"), QUrl::toStringList(urls, QUrl::FullyEncoded));
-    results.insert(QStringLiteral("writable"), true);
-    results.insert(QStringLiteral("choices"), ""); // TODO
-
-    // try to map current filter back to one of the predefined ones
-    QString selectedFilter;
-    if (bMimeFilters) {
-        selectedFilter = fileDialog.selectedMimeTypeFilter();
-    } else {
-        selectedFilter = fileDialog.selectedNameFilter();
-    }
-    if (allFilters.contains(selectedFilter)) {
-        results.insert(QStringLiteral("current_filter"), QVariant::fromValue<FilterList>(allFilters.value(selectedFilter)));
-    }
-
-    return 0;
-}
-
-uint FileChooserPortal::SaveFile(const QDBusObjectPath &handle,
-                                 const QString &app_id,
-                                 const QString &parent_window,
-                                 const QString &title,
-                                 const QVariantMap &options,
-                                 QVariantMap &results)
-{
-    qCDebug(fileChooserCategory) << __FUNCTION__ << "args:"
-                                 << "\n handle:" << handle.path()
-                                 << "\n app_id:" << app_id
-                                 << "\n parent_window:" << parent_window
-                                 << "\n title:" << title
-                                 << "\n options:" << options
-                                 << "\n results:" << results;
-
-
-    // Whether to make the dialog modal. Default is yes.
-    DECLEAR_PARA_WITH_FALLBACK(modal, toBool, true);
-    // The label for the accept button. Mnemonic underlines are allowed.
-    const QString &acceptText = parseAcceptLabel(options);
-    // A suggested filename.
-    DECLEAR_PARA(current_name, toString);
-    // A suggested folder to save the file in.
-    DECLEAR_PARA(current_folder, toString);
-    // The current file (when saving an existing file).
-    DECLEAR_PARA(current_file, toString);
-
-    QStringList nameFilters;
-    QStringList mimeTypeFilters;
-    QString selectedMimeTypeFilter;
-    // mapping between filter strings and actual filters
-    QMap<QString, FilterList> allFilters;
-    parseFilters(options, nameFilters, mimeTypeFilters, allFilters, selectedMimeTypeFilter);
-
-    if (options.contains(QStringLiteral("choices"))) {
-        OptionList optionList = qdbus_cast<OptionList>(options.value(QStringLiteral("choices")));
-    }
-
-    QFileDialog fileDialog;
-    Utils::setParentWindow(&fileDialog, parent_window);
-    auto request = new Request(handle, QVariant(), &fileDialog);
-    connect(request, &Request::closeRequested, &fileDialog, &QFileDialog::reject);
-
-    fileDialog.setWindowTitle(title);
-    fileDialog.setModal(modal);
-    fileDialog.setAcceptMode(QFileDialog::AcceptSave);
-    fileDialog.setConfirmOverwrite(true);
-    fileDialog.setDirectory(current_folder);
-    fileDialog.selectFile(current_file);
-    fileDialog.setFileMode(QFileDialog::FileMode::ExistingFile);
-    if (!acceptText.isEmpty()) {
-        fileDialog.setLabelText(QFileDialog::Accept, acceptText);
-    }
-
-    bool bMimeFilters = false;
-    if (!mimeTypeFilters.isEmpty()) {
-        fileDialog.setMimeTypeFilters(mimeTypeFilters);
-        fileDialog.selectMimeTypeFilter(selectedMimeTypeFilter);
-        bMimeFilters = true;
-    } else if (!nameFilters.isEmpty()) {
-        fileDialog.setNameFilters(nameFilters);
-    }
-
-    if (fileDialog.exec() != QDialog::Accepted)
-        return 1;
-
-    const auto &urls = fileDialog.selectedUrls();
-    results.insert(QStringLiteral("uris"), QUrl::toStringList(urls, QUrl::FullyEncoded));
-    results.insert(QStringLiteral("choices"), ""); // TODO
-    results.insert(QStringLiteral("current_filter"), ""); // TODO
-
-    return 0;
-}
-
-uint FileChooserPortal::SaveFiles(const QDBusObjectPath &handle, const QString &app_id, const QString &parent_window, const QString &title, const QVariantMap &options, QVariantMap &results)
-{
-    qCDebug(fileChooserCategory) << __FUNCTION__ << "args:"
-                                 << "\n handle:" << handle.path()
-                                 << "\n app_id:" << app_id
-                                 << "\n parent_window:" << parent_window
-                                 << "\n title:" << title
-                                 << "\n options:" << options
-                                 << "\n results:" << results;
-
-
-    // Whether the dialog should be modal. Default is yes.
-    DECLEAR_PARA_WITH_FALLBACK(modal, toBool, true);
-    // Label for the accept button. Mnemonic underlines are allowed.
-    const QString &acceptText = parseAcceptLabel(options);
-
-    // Suggested folder to save the files in. The byte array is expected to be null-terminated.
-    DECLEAR_PARA(current_folder, toString);
-    // An array of file names to be saved. The array and byte arrays are expected to be null-terminated.
-    DECLEAR_PARA(files, toStringList);
-
-    QStringList nameFilters;
-    QStringList mimeTypeFilters;
-    QString selectedMimeTypeFilter;
-    // mapping between filter strings and actual filters
-    QMap<QString, FilterList> allFilters;
-    parseFilters(options, nameFilters, mimeTypeFilters, allFilters, selectedMimeTypeFilter);
-
-    if (options.contains(QStringLiteral("choices"))) {
-        OptionList optionList = qdbus_cast<OptionList>(options.value(QStringLiteral("choices")));
-    }
-
-    QFileDialog fileDialog;
-    Utils::setParentWindow(&fileDialog, parent_window);
-
-    auto *request = new Request(handle, QVariant(), this);
-    connect(request, &Request::closeRequested, &fileDialog, &QFileDialog::reject);
-
-    fileDialog.setWindowTitle(title);
-    fileDialog.setModal(modal);
-    fileDialog.setAcceptMode(QFileDialog::AcceptSave);
-    fileDialog.setConfirmOverwrite(true);
-    fileDialog.setDirectory(current_folder);
-    fileDialog.setFileMode(QFileDialog::FileMode::ExistingFiles);
-    if (!acceptText.isEmpty()) {
-        fileDialog.setLabelText(QFileDialog::Accept, acceptText);
-    }
-
-    bool bMimeFilters = false;
-    if (!mimeTypeFilters.isEmpty()) {
-        fileDialog.setMimeTypeFilters(mimeTypeFilters);
-        fileDialog.selectMimeTypeFilter(selectedMimeTypeFilter);
-        bMimeFilters = true;
-    } else if (!nameFilters.isEmpty()) {
-        fileDialog.setNameFilters(nameFilters);
-    }
-
-    if (fileDialog.exec() != QDialog::Accepted)
-        return 1;
-
-    const auto &urls = fileDialog.selectedUrls();
-    results.insert(QStringLiteral("uris"), QUrl::toStringList(urls, QUrl::FullyEncoded));
-    results.insert(QStringLiteral("choices"), ""); // TODO
-
-    return 0;
-}
-
-QString FileChooserPortal::parseAcceptLabel(const QVariantMap &options)
-{
+    bool modalDialog = true;
+    bool multipleFiles = false;
     QString acceptLabel;
+    QStringList nameFilters;
+    QStringList mimeTypeFilters;
+
+    /* TODO
+     * choices a(ssa(ss)s)
+     * List of serialized combo boxes to add to the file chooser.
+     *
+     * For each element, the first string is an ID that will be returned with the response, te second string is a user-visible label.
+     * The a(ss) is the list of choices, each being a is an ID and a user-visible label. The final string is the initial selection,
+     * or "", to let the portal decide which choice will be initially selected. None of the strings, except for the initial selection, should be empty.
+     *
+     * As a special case, passing an empty array for the list of choices indicates a boolean choice that is typically displayed as a check button, using "true" and "false" as the choices.
+     * Example: [('encoding', 'Encoding', [('utf8', 'Unicode (UTF-8)'), ('latin15', 'Western')], 'latin15'), ('reencode', 'Reencode', [], 'false')]
+     */
+
     if (options.contains(QStringLiteral("accept_label"))) {
         acceptLabel = options.value(QStringLiteral("accept_label")).toString();
-        // 'accept_label' allows mnemonic underlines, but Qt uses '&' character, so replace/escape accordingly
-        // to keep literal '&'s and transform mnemonic underlines to the Qt equivalent using '&' for mnemonic
-        acceptLabel.replace(QChar::fromLatin1('&'), QStringLiteral("&&"));
-        const int mnemonic_pos = acceptLabel.indexOf(QChar::fromLatin1('_'));
-        if (mnemonic_pos != -1) {
-            acceptLabel.replace(mnemonic_pos, 1, QChar::fromLatin1('&'));
-        }
     }
-    return acceptLabel;
-}
 
-void FileChooserPortal::parseFilters(const QVariantMap &options,
-                                     QStringList &nameFilters,
-                                     QStringList &mimeTypeFilters,
-                                     QMap<QString, FilterList> &allFilters,
-                                     QString &selectedMimeTypeFilter)
-{
+    if (options.contains(QStringLiteral("modal"))) {
+        modalDialog = options.value(QStringLiteral("modal")).toBool();
+    }
+
+    if (options.contains(QStringLiteral("multiple"))) {
+        multipleFiles = options.value(QStringLiteral("multiple")).toBool();
+    }
+
     if (options.contains(QStringLiteral("filters"))) {
-        const FilterListList filterListList = qdbus_cast<FilterListList>(options.value(QStringLiteral("filters")));
+        FilterListList filterListList = qdbus_cast<FilterListList>(options.value(QStringLiteral("filters")));
         for (const FilterList &filterList : filterListList) {
             QStringList filterStrings;
             for (const Filter &filterStruct : filterList.filters) {
-                // a glob-style pattern (indicated by 0) or a mimetype (indicated by 1)
                 if (filterStruct.type == 0) {
                     filterStrings << filterStruct.filterString;
                 } else {
                     mimeTypeFilters << filterStruct.filterString;
-                    allFilters[filterStruct.filterString] = filterList;
                 }
             }
 
             if (!filterStrings.isEmpty()) {
-                QString userVisibleName = filterList.userVisibleName;
-                const QString filterString = filterStrings.join(QLatin1Char(' '));
-                const QString nameFilter = QStringLiteral("%1(%2)").arg(userVisibleName, filterString);
-                nameFilters << nameFilter;
-                allFilters[filterList.userVisibleName] = filterList;
+                nameFilters << QStringLiteral("%1|%2").arg(filterStrings.join(QLatin1Char(' '))).arg(filterList.userVisibleName);
             }
         }
     }
 
-    if (options.contains(QStringLiteral("current_filter"))) {
-        FilterList filterList = qdbus_cast<FilterList>(options.value(QStringLiteral("current_filter")));
-        // only one set of data is valid
-        if (filterList.filters.size() != 1) {
-            qCDebug(fileChooserCategory) << "Ignoring 'current_filter' parameter with 0 or multiple filters specified.";
-            return;
-        }
+    QScopedPointer<FileDialog, QScopedPointerDeleteLater> fileDialog(new FileDialog());
+    Utils::setParentWindow(fileDialog.data(), parent_window);
+    fileDialog->setWindowTitle(title);
+    fileDialog->setModal(modalDialog);
+    fileDialog->m_fileWidget->setMode(multipleFiles ? KFile::Mode::File | KFile::Mode::ExistingOnly : KFile::Mode::Files | KFile::Mode::ExistingOnly);
+    fileDialog->m_fileWidget->okButton()->setText(!acceptLabel.isEmpty() ? acceptLabel : i18n("Open"));
 
-        Filter filterStruct = filterList.filters.at(0);
-        if (filterStruct.type == 0) {
-            QString userVisibleName = filterList.userVisibleName;
-            QString nameFilter = QStringLiteral("%1|(%2)").arg(filterStruct.filterString, userVisibleName);
-            nameFilters.removeAll(nameFilter);
-            nameFilters.push_front(nameFilter);
-        } else {
-            selectedMimeTypeFilter = filterStruct.filterString;
+    if (!nameFilters.isEmpty()) {
+        fileDialog->m_fileWidget->setFilter(nameFilters.join(QLatin1Char('\n')));
+    }
+
+    if (!mimeTypeFilters.isEmpty()) {
+        fileDialog->m_fileWidget->setMimeFilter(mimeTypeFilters);
+    }
+
+    if (fileDialog->exec() == QDialog::Accepted) {
+        QStringList files;
+        for (const QString &filename : fileDialog->m_fileWidget->selectedFiles()) {
+           QUrl url = QUrl::fromLocalFile(filename);
+           files << url.toDisplayString();
+        }
+        results.insert(QStringLiteral("uris"), files);
+        return 0;
+    }
+
+    return 1;
+}
+
+uint FileChooserPortal::SaveFile(const QDBusObjectPath &handle,
+                           const QString &app_id,
+                           const QString &parent_window,
+                           const QString &title,
+                           const QVariantMap &options,
+                           QVariantMap &results)
+{
+    Q_UNUSED(app_id);
+
+    qCDebug(XdgDesktopPortalKdeFileChooser) << "SaveFile called with parameters:";
+    qCDebug(XdgDesktopPortalKdeFileChooser) << "    handle: " << handle.path();
+    qCDebug(XdgDesktopPortalKdeFileChooser) << "    parent_window: " << parent_window;
+    qCDebug(XdgDesktopPortalKdeFileChooser) << "    title: " << title;
+    qCDebug(XdgDesktopPortalKdeFileChooser) << "    options: " << options;
+
+    bool modalDialog = true;
+    QString acceptLabel;
+    QString currentName;
+    QString currentFolder;
+    QString currentFile;
+    QStringList nameFilters;
+    QStringList mimeTypeFilters;
+
+    // TODO parse options - choices
+
+    if (options.contains(QStringLiteral("modal"))) {
+        modalDialog = options.value(QStringLiteral("modal")).toBool();
+    }
+
+    if (options.contains(QStringLiteral("accept_label"))) {
+        acceptLabel = options.value(QStringLiteral("accept_label")).toString();
+    }
+
+    if (options.contains(QStringLiteral("current_name"))) {
+        currentName = options.value(QStringLiteral("current_name")).toString();
+    }
+
+    if (options.contains(QStringLiteral("current_folder"))) {
+        currentFolder = QString::fromUtf8(options.value(QStringLiteral("current_folder")).toByteArray());
+    }
+
+    if (options.contains(QStringLiteral("current_file"))) {
+        currentFile = QString::fromUtf8(options.value(QStringLiteral("current_file")).toByteArray());
+    }
+
+    if (options.contains(QStringLiteral("filters"))) {
+        FilterListList filterListList = qdbus_cast<FilterListList>(options.value(QStringLiteral("filters")));
+        for (const FilterList &filterList : filterListList) {
+            QStringList filterStrings;
+            for (const Filter &filterStruct : filterList.filters) {
+                if (filterStruct.type == 0) {
+                    filterStrings << filterStruct.filterString;
+                } else {
+                    mimeTypeFilters << filterStruct.filterString;
+                }
+            }
+
+            if (!filterStrings.isEmpty()) {
+                nameFilters << QStringLiteral("%1|%2").arg(filterStrings.join(QLatin1Char(' '))).arg(filterList.userVisibleName);
+            }
         }
     }
+
+    QScopedPointer<FileDialog, QScopedPointerDeleteLater> fileDialog(new FileDialog());
+    Utils::setParentWindow(fileDialog.data(), parent_window);
+    fileDialog->setWindowTitle(title);
+    fileDialog->setModal(modalDialog);
+    fileDialog->m_fileWidget->setOperationMode(KFileWidget::Saving);
+
+    if (!currentFolder.isEmpty()) {
+        fileDialog->m_fileWidget->setUrl(QUrl::fromLocalFile(currentFolder));
+    }
+
+    if (!currentFile.isEmpty()) {
+        fileDialog->m_fileWidget->setSelectedUrl(QUrl::fromLocalFile(currentFile));
+    }
+
+    if (!currentName.isEmpty()) {
+        const QUrl url = fileDialog->m_fileWidget->baseUrl();
+        fileDialog->m_fileWidget->setSelectedUrl(QUrl::fromLocalFile(QStringLiteral("%1/%2").arg(url.toDisplayString(QUrl::StripTrailingSlash), currentName)));
+    }
+
+    if (!acceptLabel.isEmpty()) {
+        fileDialog->m_fileWidget->okButton()->setText(acceptLabel);
+    }
+
+    if (!nameFilters.isEmpty()) {
+        fileDialog->m_fileWidget->setFilter(nameFilters.join(QLatin1Char('\n')));
+    }
+
+    if (!mimeTypeFilters.isEmpty()) {
+        fileDialog->m_fileWidget->setMimeFilter(mimeTypeFilters);
+    }
+
+    if (fileDialog->exec() == QDialog::Accepted) {
+        QStringList files;
+        QUrl url = QUrl::fromLocalFile(fileDialog->m_fileWidget->selectedFile());
+        files << url.toDisplayString();
+        results.insert(QStringLiteral("uris"), files);
+        return 0;
+    }
+
+    return 1;
 }
+

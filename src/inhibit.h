@@ -1,27 +1,31 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// Copyright © 2017 Red Hat, Inc
+// SPDX-FileCopyrightText: 2023 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-#pragma once
+#ifndef XDG_DESKTOP_PORTAL_KDE_INHIBIT_H
+#define XDG_DESKTOP_PORTAL_KDE_INHIBIT_H
 
 #include <QDBusAbstractAdaptor>
 #include <QDBusObjectPath>
+
+#include "request.h"
 
 class InhibitPortal : public QDBusAbstractAdaptor
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Inhibit")
-    Q_PROPERTY(uint version READ version CONSTANT)
-    inline uint version() const { return 3; }
-
 public:
     explicit InhibitPortal(QObject *parent);
-    ~InhibitPortal() = default;
+    ~InhibitPortal();
 
-public slots:
-    void
-    Inhibit(const QDBusObjectPath &handle, const QString &app_id, const QString &window, uint flags, const QVariantMap &options);
-
-private slots:
-    void onCloseRequested(const QVariant &data);
+public Q_SLOTS:
+    void Inhibit(const QDBusObjectPath &handle,
+                 const QString &app_id,
+                 const QString &window,
+                 uint flags,
+                 const QVariantMap &options);
 };
+
+#endif // XDG_DESKTOP_PORTAL_KDE_INHIBIT_H
+

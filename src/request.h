@@ -1,31 +1,31 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// Copyright © 2017 Red Hat, Inc
+// SPDX-FileCopyrightText: 2023 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-#pragma once
-
-#include <functional>
+#ifndef XDG_DESKTOP_PORTAL_KDE_REQUEST_H
+#define XDG_DESKTOP_PORTAL_KDE_REQUEST_H
 
 #include <QObject>
-#include <QDBusObjectPath>
-#include <QDBusError>
+#include <QDBusVirtualObject>
 
-class Request : public QObject
+class Request : public QDBusVirtualObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Request")
-
 public:
-    Request(const QDBusObjectPath &handle, const QVariant &data, QObject *parent = nullptr);
-    ~Request();
+    explicit Request(QObject *parent = nullptr, const QString &portalName = QString(), const QVariant &data = QVariant());
+    ~Request() override;
 
-public slots:  // DBus methods
-    Q_SCRIPTABLE void Close(const QDBusMessage &message);
+    bool handleMessage(const QDBusMessage &message, const QDBusConnection &connection) override;
+    QString introspect(const QString &path) const override;
 
-signals:
-    void closeRequested(const QVariant &data);
+Q_SIGNALS:
+    void closeRequested();
 
 private:
-    QDBusObjectPath m_handle;
-    QVariant m_data;
+    const QVariant m_data;
+    const QString m_portalName;
 };
+
+#endif // XDG_DESKTOP_PORTAL_KDE_REQUEST_H
+
