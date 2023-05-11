@@ -3,23 +3,24 @@ Section: libdevel
 Priority: optional
 Maintainer: Deepin Packages Builder <packages@deepin.com>
 Build-Depends:
-              cmake (>= 3.0~),
-              dbus-x11,
-              debhelper (>= 11~),
-              extra-cmake-modules (>= 5.50.0~),
-              libkf5coreaddons-dev (>= 5.50.0~),
-              libkf5i18n-dev (>= 5.50.0~),
-              libkf5notifications-dev (>= 5.50.0~),
-              libkf5wayland-dev (>= 4:5.50.0~),
-              libkf5widgetsaddons-dev (>= 5.50.0~),
-              libkf5windowsystem-dev (>= 5.50.0~),
-              pkg-kde-tools (>= 0.15.18~),
-              qtbase5-dev (>= 5.11.0~),
-              qtbase5-private-dev,
-              libpipewire-0.2-dev,
-              libgbm-dev,
-              libepoxy-dev,
-	      libwayland-dev
+  cmake (>= 3.0~),
+  dbus-x11,
+  debhelper (>= 11~),
+  extra-cmake-modules (>= 5.50.0~),
+  libkf5coreaddons-dev (>= 5.50.0~),
+  libkf5i18n-dev (>= 5.50.0~),
+  libkf5notifications-dev (>= 5.50.0~),
+  libkf5wayland-dev (>= 4:5.50.0~),
+  libkf5widgetsaddons-dev (>= 5.50.0~),
+  libkf5windowsystem-dev (>= 5.50.0~),
+  pkg-kde-tools (>= 0.15.18~),
+  qtbase5-dev (>= 5.11.0~),
+  qtbase5-private-dev,
+  libpipewire-0.2-dev,
+  libgbm-dev,
+  libepoxy-dev,
+  libkf5declarative-dev,
+  libwayland-dev
 Standards-Version: 4.5.0
 
 Package: xdg-desktop-portal-dde
