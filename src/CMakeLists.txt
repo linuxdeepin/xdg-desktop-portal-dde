@@ -1,4 +1,4 @@
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
+find_package(QT NAMES Qt5 REQUIRED COMPONENTS Core)
 find_package(
   Qt${QT_VERSION_MAJOR} CONFIG REQUIRED COMPONENTS
   Core
@@ -6,7 +6,10 @@ find_package(
   DBus
   Widgets)
 find_package(ECM ${KF5_MIN_VERSION} REQUIRED NO_MODULE)
+
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
+
+find_package(QtWaylandScanner REQUIRED)
 
 find_package(KF5 ${KF5_MIN_VERSION} REQUIRED
     I18n
@@ -83,13 +86,21 @@ set(SRC
   remotedesktop.cpp
   remotedesktopdialog.cpp
   waylandintegration.cpp
-  wayland-zkde-screencast-unstable-v1-protocol.c
-  qwayland-zkde-screencast-unstable-v1.cpp)
+)
 
 QT5_WRAP_UI(SRC
   screenchooserdialog.ui
   remotedesktopdialog.ui)
 
+ecm_add_qtwayland_client_protocol(SRC
+  PROTOCOL ${CMAKE_SOURCE_DIR}/misc/zkde-screencast-unstable-v1.xml
+  BASENAME zkde-screencast-unstable-v1
+)
+
+ecm_add_qtwayland_client_protocol(SRC
+  PROTOCOL ${Wayland_DATADIR}/wayland.xml
+  BASENAME wayland
+)
 
 add_executable(${PROJECT_NAME}
   ${SRC})
@@ -105,7 +116,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   KF5::Notifications
   Wayland::Client
   epoxy
-  pipewire-0.2
   gbm)
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
