@@ -1,19 +1,22 @@
 pkgname=xdg-desktop-portal-dde
 pkgver=1.0
 pkgrel=1.0
+sourcename=xdg-desktop-portal-dde
+sourcetars=("$sourcename"_"$pkgver".tar.gz)
+sourcedir="$sourcename"
 pkgdesc='xdg-desktop-portal backend for deepin'
 arch=('x86_64' 'aarch64')
 url='https://github.com/linuxdeepin/xdg-desktop-portal-dde'
 license=('LGPL3')
-depends=('deepin-qt-dbus-factory-git' 'qt5-base')
-makedepends=('git' 'ninja' 'cmake' 'qt5-tools')
+depends=('qt5-base' 'qt5-wayland' 'wayland' 'ki18n' 'kirigami2' 'plasma-framework' 'kio-fuse')
+makedepends=('git' 'ninja' 'cmake' 'qt5-tools' 'wayland-protocols' 'extra-cmake-modules')
 provides=('xdg-desktop-portal-impl')
 groups=('deepin-git')
-source=('source.tar.gz')
+source=("${sourcetars[@]}")
 sha512sums=('SKIP')
 
 build() {
-  cd $deepin_source_name
+  cd $sourcedir
   cmake -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_LIBEXECDIR=/usr/lib
@@ -21,6 +24,6 @@ build() {
 }
 
 package() {
-  cd $deepin_source_name
-	DESTDIR="$pkgdir" ninja install
+  cd $sourcedir
+  DESTDIR="$pkgdir" ninja install
 }
