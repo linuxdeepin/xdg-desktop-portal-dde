@@ -10,7 +10,7 @@
 #include <QSize>
 #include <QVariant>
 
-#include <KWayland/Client/output.h>
+#include <DWayland/Client/output.h>
 #include <screencasting.h>
 
 namespace KWayland {

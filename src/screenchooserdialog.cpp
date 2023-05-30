@@ -12,8 +12,8 @@
 #include <QStandardPaths>
 #include <QSettings>
 #include <QSortFilterProxyModel>
-#include <KWayland/Client/plasmawindowmodel.h>
-#include <KWayland/Client/plasmawindowmanagement.h>
+#include <DWayland/Client/plasmawindowmodel.h>
+#include <DWayland/Client/plasmawindowmanagement.h>
 
 class FilteredWindowModel : public QSortFilterProxyModel
 {

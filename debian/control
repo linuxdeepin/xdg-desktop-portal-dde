@@ -11,7 +11,6 @@ Build-Depends:
   libkf5coreaddons-dev (>= 5.50.0~),
   libkf5i18n-dev (>= 5.50.0~),
   libkf5notifications-dev (>= 5.50.0~),
-  libkf5wayland-dev (>= 4:5.50.0~),
   libkf5widgetsaddons-dev (>= 5.50.0~),
   libkf5windowsystem-dev (>= 5.50.0~),
   pkg-kde-tools (>= 0.15.18~),
@@ -21,7 +20,8 @@ Build-Depends:
   libgbm-dev,
   libepoxy-dev,
   libkf5declarative-dev,
-  libwayland-dev
+  libwayland-dev,
+  libdwayland-dev
 Standards-Version: 4.5.0
 
 Package: xdg-desktop-portal-dde
