@@ -15,9 +15,9 @@ find_package(KF5 ${KF5_MIN_VERSION} REQUIRED
     I18n
     Declarative
     Notifications
-    Wayland
 )
 
+find_package(DWayland REQUIRED)
 find_package(KF5I18n CONFIG REQUIRED)
 find_package(Wayland 1.15 REQUIRED COMPONENTS Client)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -112,7 +112,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   Qt${QT_VERSION_MAJOR}::DBus
   Qt${QT_VERSION_MAJOR}::Concurrent
   KF5::I18n
-  KF5::WaylandClient
+  DWaylandClient
   KF5::Notifications
   Wayland::Client
   epoxy

@@ -6,9 +6,9 @@
 #include "qwayland-zkde-screencast-unstable-v1.h"
 #include <QRect>
 #include <QDebug>
-#include <KWayland/Client/registry.h>
-#include <KWayland/Client/output.h>
-#include <KWayland/Client/plasmawindowmanagement.h>
+#include <DWayland/Client/registry.h>
+#include <DWayland/Client/output.h>
+#include <DWayland/Client/plasmawindowmanagement.h>
 
 using namespace KWayland::Client;
 

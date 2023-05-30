@@ -21,17 +21,17 @@
 #include <KLocalizedString>
 
 // KWayland
-#include <KWayland/Client/connection_thread.h>
-#include <KWayland/Client/event_queue.h>
-#include <KWayland/Client/registry.h>
-#include <KWayland/Client/plasmawindowmanagement.h>
+#include <DWayland/Client/connection_thread.h>
+#include <DWayland/Client/event_queue.h>
+#include <DWayland/Client/registry.h>
+#include <DWayland/Client/plasmawindowmanagement.h>
 
 // system
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <KWayland/Client/fakeinput.h>
-#include <KWayland/Client/output.h>
+#include <DWayland/Client/fakeinput.h>
+#include <DWayland/Client/output.h>
 
 Q_LOGGING_CATEGORY(XdgDesktopPortalDdeWaylandIntegration, "xdp-dde-wayland-integration")
 
