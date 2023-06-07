@@ -20,6 +20,11 @@ find_package(KF5 ${KF5_MIN_VERSION} REQUIRED
 find_package(DWayland REQUIRED)
 find_package(KF5I18n CONFIG REQUIRED)
 find_package(Wayland 1.15 REQUIRED COMPONENTS Client)
+find_package(PkgConfig)
+
+pkg_search_module(EPOXY REQUIRED epoxy)
+pkg_search_module(GBM REQUIRED gbm)
+
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set_source_files_properties(
@@ -115,7 +120,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   DWaylandClient
   KF5::Notifications
   Wayland::Client
-  epoxy
-  gbm)
+  ${EPOXY_LIBRARIES}
+  ${GBM_LIBRARIES})
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
