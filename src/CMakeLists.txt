@@ -23,7 +23,7 @@ find_package(Wayland 1.15 REQUIRED COMPONENTS Client)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set_source_files_properties(
-                      ${CMAKE_SOURCE_DIR}/xml/org.freedesktop.Notifications.xml
+                      ${CMAKE_SOURCE_DIR}/misc/org.freedesktop.Notifications.xml
                       PROPERTIES
                       CLASSNAME
                         NotificationService
@@ -31,7 +31,7 @@ set_source_files_properties(
                         OFF
 )
 qt5_add_dbus_interface(NotificationInterface
-                      ${CMAKE_SOURCE_DIR}/xml/org.freedesktop.Notifications.xml
+                      ${CMAKE_SOURCE_DIR}/misc/org.freedesktop.Notifications.xml
                       notification_interface
 )
 
