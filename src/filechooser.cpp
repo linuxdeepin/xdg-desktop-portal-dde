@@ -289,7 +289,7 @@ uint FileChooserPortal::SaveFile(const QDBusObjectPath &handle,
     fileDialog.setWindowTitle(title);
     fileDialog.setModal(modal);
     fileDialog.setAcceptMode(QFileDialog::AcceptSave);
-    fileDialog.setConfirmOverwrite(true);
+    fileDialog.setOption(QFileDialog::DontConfirmOverwrite, false);
     fileDialog.setDirectory(current_folder);
     fileDialog.selectFile(current_file);
     fileDialog.setFileMode(QFileDialog::FileMode::ExistingFile);
@@ -358,7 +358,7 @@ uint FileChooserPortal::SaveFiles(const QDBusObjectPath &handle, const QString &
     fileDialog.setWindowTitle(title);
     fileDialog.setModal(modal);
     fileDialog.setAcceptMode(QFileDialog::AcceptSave);
-    fileDialog.setConfirmOverwrite(true);
+    fileDialog.setOption(QFileDialog::DontConfirmOverwrite, false);
     fileDialog.setDirectory(current_folder);
     fileDialog.setFileMode(QFileDialog::FileMode::ExistingFiles);
     if (!acceptText.isEmpty()) {
