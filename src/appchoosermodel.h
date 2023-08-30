@@ -5,13 +5,26 @@
 #ifndef APPCHOOSERMODEL_H
 #define APPCHOOSERMODEL_H
 #include <QAbstractListModel>
+#include <QString>
+#include <QMap>
+#include <QMetaType>
+#include <QDBusMetaType>
+#include <QDBusObjectPath>
+
+using ObjectInterfaceMap = QMap<QString, QVariantMap>;
+using ObjectMap = QMap<QDBusObjectPath, ObjectInterfaceMap>;
+using PropMap = QMap<QString, QMap<QString, QString>>;
+
+Q_DECLARE_METATYPE(ObjectMap)
+Q_DECLARE_METATYPE(ObjectInterfaceMap)
+Q_DECLARE_METATYPE(PropMap)
 
 class AppChooserModel : public QAbstractListModel
 {
     Q_OBJECT
 public:
     struct DesktopInfo {
-      QString desktop;
+      QString appId;
       QString name;
       QString icon;
       bool selected;
@@ -26,7 +39,7 @@ public:
     explicit AppChooserModel(QObject *parent = nullptr);
 
     void click(const QModelIndex &index);
-    void click(const QString &desktop);
+    void click(const QString &appId);
 
     QStringList choices();
 
