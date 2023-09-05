@@ -77,7 +77,7 @@ void AppChooserModel::loadApplications()
                 } else {
                     info.name = propName["Name"]["default"];
                 }
-                const auto iconMap = infoMap["IconName"].value<QDBusArgument>();
+                const auto iconMap = infoMap["Icons"].value<QDBusArgument>();
                 PropMap propIcon;
                 iconMap >> propIcon;
                 info.icon = propIcon["default"]["default"];
