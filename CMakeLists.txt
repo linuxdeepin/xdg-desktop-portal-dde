@@ -28,3 +28,4 @@ configure_file(
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/xdg-desktop-portal-dde.service DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/systemd/user/")
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/org.freedesktop.impl.portal.desktop.dde.service DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/dbus-1/services")
 install(FILES ${CMAKE_CURRENT_LIST_DIR}/misc/dde.portal DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/xdg-desktop-portal/portals/")
+install(FILES ${CMAKE_CURRENT_LIST_DIR}/misc/dde-portals.conf DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/xdg-desktop-portal/")
