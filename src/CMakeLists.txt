@@ -13,7 +13,6 @@ find_package(QtWaylandScanner REQUIRED)
 
 find_package(KF5 ${KF5_MIN_VERSION} REQUIRED
     I18n
-    Declarative
     Notifications
 )
 
@@ -21,9 +20,6 @@ find_package(DWayland REQUIRED)
 find_package(KF5I18n CONFIG REQUIRED)
 find_package(Wayland 1.15 REQUIRED COMPONENTS Client)
 find_package(PkgConfig)
-
-pkg_search_module(EPOXY REQUIRED epoxy)
-pkg_search_module(GBM REQUIRED gbm)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -119,8 +115,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   KF5::I18n
   DWaylandClient
   KF5::Notifications
-  Wayland::Client
-  ${EPOXY_LIBRARIES}
-  ${GBM_LIBRARIES})
+  Wayland::Client)
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
