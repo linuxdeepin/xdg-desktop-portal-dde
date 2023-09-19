@@ -1,6 +1,6 @@
 # xdg-desktop-portal-dde
 
-A backend implement for xdg-desktop-portal on Deepin desktop environment
+A backend implementation for xdg-desktop-portal on Deepin desktop environment
 
 ## Interface Status
 
