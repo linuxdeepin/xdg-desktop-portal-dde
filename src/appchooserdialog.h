@@ -22,6 +22,6 @@ private:
     QListView *m_view;
     QStringList m_choices;
 
-    QPushButton *m_cancleBtn;
+    QPushButton *m_cancelBtn;
     QPushButton *m_confirmBtn;
 };
