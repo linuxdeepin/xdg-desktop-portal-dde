@@ -15,7 +15,7 @@
 AppChooserDialog::AppChooserDialog(QWidget *parent)
     : QDialog(parent)
     , m_view(new QListView(this))
-    , m_cancleBtn(new QPushButton(tr("Cancle"), this))
+    , m_cancelBtn(new QPushButton(tr("Cancel"), this))
     , m_confirmBtn(new QPushButton(tr("Confirm"), this))
 {
     m_view->setFlow(QListView::LeftToRight);
@@ -32,7 +32,7 @@ AppChooserDialog::AppChooserDialog(QWidget *parent)
 
     QHBoxLayout *btnLayout = new QHBoxLayout;
     btnLayout->setAlignment(Qt::AlignRight);
-    btnLayout->addWidget(m_cancleBtn);
+    btnLayout->addWidget(m_cancelBtn);
     btnLayout->addWidget(m_confirmBtn);
 
     QVBoxLayout *layout = new QVBoxLayout(this);
@@ -42,7 +42,7 @@ AppChooserDialog::AppChooserDialog(QWidget *parent)
     m_view->setItemDelegate(new AppChooserDelegate);
 
     connect(m_confirmBtn, &QPushButton::clicked, this, &QDialog::accept);
-    connect(m_cancleBtn, &QPushButton::clicked, this, &QDialog::reject);
+    connect(m_cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
 
     setMinimumSize(750, 300);
 }
