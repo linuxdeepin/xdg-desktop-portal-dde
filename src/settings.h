@@ -28,5 +28,6 @@ public slots:
 signals:
     void SettingChanged(const QString &group, const QString &key, const QDBusVariant &value);
 private:
-    QDBusVariant readFdoColorScheme();
+    QDBusVariant readFdoColorScheme() const;
+    QDBusVariant readAccentColor() const ;
 };
