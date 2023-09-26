@@ -2,16 +2,17 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-#include "dbushelpers.h"
 #include "settings.h"
 
-#include <QLoggingCategory>
+#include "dbushelpers.h"
+
+#include <QApplication>
+#include <QDBusConnection>
 #include <QDBusContext>
 #include <QDBusMessage>
-#include <QApplication>
-#include <QPalette>
-#include <QDBusConnection>
 #include <QDBusMetaType>
+#include <QLoggingCategory>
+#include <QPalette>
 
 #define NO_PREFERENCE 0
 #define PREFER_DARK_APPEARANCE 1
@@ -30,12 +31,40 @@ static bool groupMatches(const QString &group, const QStringList &patterns)
             return true;
         }
 
-        if (pattern.endsWith(QLatin1Char('*')) && group.startsWith(pattern.left(pattern.length() - 1))) {
+        if (pattern.endsWith(QLatin1Char('*'))
+            && group.startsWith(pattern.left(pattern.length() - 1))) {
             return true;
         }
     }
 
     return false;
+}
+
+/* accent-color */
+struct AccentColorArray
+{
+    double r = 0.0; // 0-1
+    double g = 0.0; // 0-1
+    double b = 0.0; // 0-1
+
+    operator QVariant() const { return QVariant::fromValue(*this); }
+};
+Q_DECLARE_METATYPE(AccentColorArray)
+
+QDBusArgument &operator<<(QDBusArgument &argument, const AccentColorArray &item)
+{
+    argument.beginStructure();
+    argument << item.r << item.g << item.b;
+    argument.endStructure();
+    return argument;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &argument, AccentColorArray &item)
+{
+    argument.beginStructure();
+    argument >> item.r >> item.g >> item.b;
+    argument.endStructure();
+    return argument;
 }
 
 SettingsPortal::SettingsPortal(QObject *parent)
@@ -67,16 +96,30 @@ void SettingsPortal::Read(const QString &group, const QString &key)
     QDBusMessage reply;
     QDBusMessage message = q_ptr->message();
 
-    if (group == QLatin1String("org.freedesktop.appearance") && key == QLatin1String("color-scheme")) {
+    if (group != QLatin1String("org.freedesktop.appearance")) {
+        return;
+    }
+    if (key == QLatin1String("color-scheme")) {
         reply = message.createReply(QVariant::fromValue(readFdoColorScheme()));
         QDBusConnection::sessionBus().send(reply);
         return;
     }
+    if (key == QLatin1String("accent-color")) {
+        reply = message.createReply(QVariant::fromValue(readAccentColor()));
+        QDBusConnection::sessionBus().send(reply);
+        return;
+    }
+    return;
 }
 
 void SettingsPortal::onPaletteChanged(const QPalette &palette)
 {
-    Q_EMIT SettingChanged(QStringLiteral("org.freedesktop.appearance"), QStringLiteral("color-scheme"), readFdoColorScheme());
+    Q_EMIT SettingChanged(QStringLiteral("org.freedesktop.appearance"),
+                          QStringLiteral("color-scheme"),
+                          readFdoColorScheme());
+    Q_EMIT SettingChanged(QStringLiteral("org.freedesktop.appearance"),
+                          QStringLiteral("accent-color"),
+                          readAccentColor());
 }
 
 void SettingsPortal::ReadAll(const QStringList &groups)
@@ -105,6 +148,7 @@ void SettingsPortal::ReadAll(const QStringList &groups)
     if (groupMatches(QStringLiteral("org.freedesktop.appearance"), groups)) {
         QVariantMap appearanceSettings;
         appearanceSettings.insert(QStringLiteral("color-scheme"), readFdoColorScheme().variant());
+        appearanceSettings.insert(QStringLiteral("accent-color"), readAccentColor().variant());
 
         result.insert(QStringLiteral("org.freedesktop.appearance"), appearanceSettings);
     }
@@ -113,7 +157,7 @@ void SettingsPortal::ReadAll(const QStringList &groups)
     QDBusConnection::sessionBus().send(reply);
 }
 
-QDBusVariant SettingsPortal::readFdoColorScheme()
+QDBusVariant SettingsPortal::readFdoColorScheme() const
 {
     const QPalette palette = QApplication::palette();
     const int windowBackgroundGray = qGray(palette.window().color().rgb());
@@ -127,4 +171,11 @@ QDBusVariant SettingsPortal::readFdoColorScheme()
     }
 
     return QDBusVariant(result);
+}
+
+QDBusVariant SettingsPortal::readAccentColor() const
+{
+    const QColor accentColor = qGuiApp->palette().highlight().color();
+    return QDBusVariant(
+            AccentColorArray{ accentColor.redF(), accentColor.greenF(), accentColor.blueF() });
 }
