@@ -8,3 +8,4 @@ Type=dbus
 BusName=org.freedesktop.impl.portal.desktop.dde
 ExecStart=@CMAKE_INSTALL_FULL_LIBEXECDIR@/xdg-desktop-portal-dde
 Restart=on-failure
+RestartPreventExitStatus=1
