@@ -49,7 +49,7 @@ void NotificationPortal::AddNotification(const QString &app_id, const QString &i
         }
 
         QStringList actions;
-        for (const QVariantMap &button : qAsConst(buttons)) {
+        for (const QVariantMap &button : std::as_const(buttons)) {
             actions << button.value(QStringLiteral("label")).toString();
         }
 
