@@ -1,26 +1,11 @@
-find_package(QT NAMES Qt5 REQUIRED COMPONENTS Core)
 find_package(
-  Qt${QT_VERSION_MAJOR} CONFIG REQUIRED COMPONENTS
-  Core
-  Concurrent
-  DBus
-  Widgets)
-find_package(ECM ${KF5_MIN_VERSION} REQUIRED NO_MODULE)
-
-set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH})
-
-find_package(QtWaylandScanner REQUIRED)
-
-find_package(KF5 ${KF5_MIN_VERSION} REQUIRED
-    I18n
-    Notifications
-)
-
-find_package(DWayland REQUIRED)
-find_package(Wayland 1.15 REQUIRED COMPONENTS Client)
-find_package(PkgConfig)
-
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
+    Qt6 CONFIG REQUIRED COMPONENTS
+    Core
+    Concurrent
+    DBus
+    Widgets
+    WaylandClient)
+find_package(Qt6WaylandScannerTools REQUIRED)
 
 set_source_files_properties(
                       ${CMAKE_SOURCE_DIR}/misc/org.freedesktop.Notifications.xml
@@ -30,75 +15,65 @@ set_source_files_properties(
                       NO_NAMESPACE
                         OFF
 )
-qt5_add_dbus_interface(NotificationInterface
+
+qt6_add_dbus_interface(NotificationInterface
                       ${CMAKE_SOURCE_DIR}/misc/org.freedesktop.Notifications.xml
                       notification_interface
 )
 
 set(SRC
-  ${NotificationInterface}
-  xdg-desktop-portal-dde.cpp
-  ddesktopportal.h
-  ddesktopportal.cpp
-  screenshot.h
-  screenshot.cpp
-  background.h
-  background.cpp
-  filechooser.h
-  filechooser.cpp
-  wallpaper.h
-  wallpaper.cpp
-  notification.h
-  notification.cpp
-  settings.h
-  settings.cpp
-  inhibit.h
-  inhibit.cpp
-  appchooser.h
-  appchooser.cpp
-  appchooserdialog.h
-  appchooserdialog.cpp
-  appchooserdelegate.h
-  appchooserdelegate.cpp
-  appchoosermodel.h
-  appchoosermodel.cpp
-  iteminfo.h
-  iteminfo.cpp
-  account.h
-  account.cpp
-  globalshortcut.h
-  globalshortcut.cpp
-  lockdown.h
-  lockdown.cpp
-  secret.h
-  secret.cpp
-  request.h
-  request.cpp
-  dbushelpers.h
-  utils.h
-  utils.cpp
-)
-
-ecm_add_qtwayland_client_protocol(SRC
-  PROTOCOL ${CMAKE_SOURCE_DIR}/misc/zkde-screencast-unstable-v1.xml
-  BASENAME zkde-screencast-unstable-v1
-)
-
-ecm_add_qtwayland_client_protocol(SRC
-  PROTOCOL ${Wayland_DATADIR}/wayland.xml
-  BASENAME wayland
+    ${NotificationInterface}
+    xdg-desktop-portal-dde.cpp
+    ddesktopportal.h
+    ddesktopportal.cpp
+    screenshot.h
+    screenshot.cpp
+    background.h
+    background.cpp
+    filechooser.h
+    filechooser.cpp
+    wallpaper.h
+    wallpaper.cpp
+    notification.h
+    notification.cpp
+    settings.h
+    settings.cpp
+    inhibit.h
+    inhibit.cpp
+    appchooser.h
+    appchooser.cpp
+    appchooserdialog.h
+    appchooserdialog.cpp
+    appchooserdelegate.h
+    appchooserdelegate.cpp
+    appchoosermodel.h
+    appchoosermodel.cpp
+    iteminfo.h
+    iteminfo.cpp
+    account.h
+    account.cpp
+    globalshortcut.h
+    globalshortcut.cpp
+    lockdown.h
+    lockdown.cpp
+    secret.h
+    secret.cpp
+    request.h
+    request.cpp
+    dbushelpers.h
+    utils.h
+    utils.cpp
 )
 
 add_executable(${PROJECT_NAME}
-  ${SRC})
+    ${SRC})
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
-  Qt${QT_VERSION_MAJOR}::Core
-  Qt${QT_VERSION_MAJOR}::Widgets
-  Qt${QT_VERSION_MAJOR}::Gui
-  Qt${QT_VERSION_MAJOR}::DBus
-  Qt${QT_VERSION_MAJOR}::Concurrent
-  DWaylandClient
-  Wayland::Client)
+    Qt::Core
+    Qt::Widgets
+    Qt::Gui
+    Qt::DBus
+    Qt::Concurrent
+    Qt::WaylandClient)
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
