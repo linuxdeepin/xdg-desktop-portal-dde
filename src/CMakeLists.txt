@@ -17,7 +17,6 @@ find_package(KF5 ${KF5_MIN_VERSION} REQUIRED
 )
 
 find_package(DWayland REQUIRED)
-find_package(KF5I18n CONFIG REQUIRED)
 find_package(Wayland 1.15 REQUIRED COMPONENTS Client)
 find_package(PkgConfig)
 
@@ -67,8 +66,6 @@ set(SRC
   iteminfo.cpp
   account.h
   account.cpp
-  session.h
-  session.cpp
   globalshortcut.h
   globalshortcut.cpp
   lockdown.h
@@ -80,18 +77,7 @@ set(SRC
   dbushelpers.h
   utils.h
   utils.cpp
-  screencast.cpp
-  screencasting.cpp
-  screencastwidget.cpp
-  screenchooserdialog.cpp
-  remotedesktop.cpp
-  remotedesktopdialog.cpp
-  waylandintegration.cpp
 )
-
-QT5_WRAP_UI(SRC
-  screenchooserdialog.ui
-  remotedesktopdialog.ui)
 
 ecm_add_qtwayland_client_protocol(SRC
   PROTOCOL ${CMAKE_SOURCE_DIR}/misc/zkde-screencast-unstable-v1.xml
@@ -112,9 +98,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   Qt${QT_VERSION_MAJOR}::Gui
   Qt${QT_VERSION_MAJOR}::DBus
   Qt${QT_VERSION_MAJOR}::Concurrent
-  KF5::I18n
   DWaylandClient
-  KF5::Notifications
   Wayland::Client)
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})

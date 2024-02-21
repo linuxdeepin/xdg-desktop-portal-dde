@@ -8,13 +8,10 @@
 #include <QObject>
 
 class ScreenshotPortal;
-class ScreenCastPortal;
 class BackgroundPortal;
 class InhibitPortal;
 class SettingsPortal;
 class AccountPortal;
-class SessionPortal;
-class RemoteDesktopPortal;
 class GlobalShortcutPortal;
 class LockdownPortal;
 class SecretPortal;
@@ -35,13 +32,10 @@ private:
     AppChooserPortal *const m_appChooser;
     FileChooserPortal *const m_fileChooser;
     ScreenshotPortal *m_screenshot = nullptr;
-    ScreenCastPortal *m_screencast = nullptr;
     BackgroundPortal *m_background = nullptr;
     InhibitPortal *m_inhibit = nullptr;
     SettingsPortal *m_settings = nullptr;
     AccountPortal *m_account = nullptr;
-    SessionPortal *m_session = nullptr;
-    RemoteDesktopPortal *m_remote = nullptr;
     GlobalShortcutPortal *m_shortcut = nullptr;
     LockdownPortal *m_lockdown = nullptr;
     SecretPortal *m_secret = nullptr;
