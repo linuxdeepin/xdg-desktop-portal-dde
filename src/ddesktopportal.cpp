@@ -8,18 +8,14 @@
 #include "secret.h"
 #include "lockdown.h"
 #include "globalshortcut.h"
-#include "session.h"
-#include "remotedesktop.h"
 #include "account.h"
 #include "inhibit.h"
 #include "settings.h"
 #include "screenshot.h"
-#include "screencast.h"
 #include "background.h"
 #include "filechooser.h"
 #include "wallpaper.h"
 #include "notification.h"
-#include "waylandintegration.h"
 
 DDesktopPortal::DDesktopPortal(QObject *parent)
     : QObject(parent)
@@ -31,16 +27,12 @@ DDesktopPortal::DDesktopPortal(QObject *parent)
     const QByteArray &xdgCurrentDesktop = qgetenv("XDG_CURRENT_DESKTOP").toUpper();
     if (xdgCurrentDesktop == "DDE" || xdgCurrentDesktop == "DEEPIN") {
         m_screenshot = new ScreenshotPortal(this);
-        m_screencast = new ScreenCastPortal(this);
         m_background = new BackgroundPortal(this);
         m_settings = new SettingsPortal(this);
         m_inhibit = new InhibitPortal(this);
         m_account = new AccountPortal(this);
-        m_session = new SessionPortal(this);
-        m_remote = new RemoteDesktopPortal(this);
         m_shortcut = new GlobalShortcutPortal(this);
         m_lockdown = new LockdownPortal(this);
         m_secret = new SecretPortal(this);
-        WaylandIntegration::init();
     }
 }
