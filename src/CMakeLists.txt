@@ -74,6 +74,10 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     Qt::Gui
     Qt::DBus
     Qt::Concurrent
-    Qt::WaylandClient)
+    Qt::WaylandClient
+    xdg-desktop-portal-dde-wayland
+    )
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
+
+add_subdirectory(wayland)
