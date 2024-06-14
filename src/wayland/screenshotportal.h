@@ -18,6 +18,7 @@ public:
     ScreenshotPortalWayland(PortalWaylandContext *context);
 
     QString fullScreenShot();
+    QString captureInteractively();
 
 public Q_SLOTS:
     uint PickColor(const QDBusObjectPath &handle,
