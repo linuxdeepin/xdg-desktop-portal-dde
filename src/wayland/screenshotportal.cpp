@@ -4,6 +4,7 @@
 
 #include "screenshotportal.h"
 #include "protocols/common.h"
+#include "protocols/treelandcapture.h"
 
 #include <QApplication>
 #include <QScreen>
@@ -72,7 +73,7 @@ QString ScreenshotPortalWayland::fullScreenShot()
     QImage image(outputRegion.boundingRect().size(), formatLast);
     QPainter p(&image);
     p.setRenderHint(QPainter::Antialiasing);
-    for (auto info : captureList) {
+    for (const auto &info : std::as_const(captureList)) {
         if (!info->capturedImage.isNull()) {
             QRect targetRect = info->screen->geometry();
             // Convert to screen image local coordinates
@@ -94,6 +95,41 @@ QString ScreenshotPortalWayland::fullScreenShot()
         return "";
     }
 }
+QString ScreenshotPortalWayland::captureInteractively()
+{
+    auto captureManager = context()->treelandCaptureManager();
+    auto captureContext = captureManager->getContext();
+    if (!captureContext) {
+        return "";
+    }
+    captureContext->selectSource(QtWayland::treeland_capture_context_v1::source_type_output
+                                         | QtWayland::treeland_capture_context_v1::source_type_window
+                                         | QtWayland::treeland_capture_context_v1::source_type_region
+                                 ,true
+                                 , false
+                                 ,nullptr);
+    QEventLoop loop;
+    connect(captureContext, &TreeLandCaptureContext::sourceReady, &loop, &QEventLoop::quit);
+    loop.exec();
+    auto frame = captureContext->frame();
+    QImage result;
+    connect(frame, &TreeLandCaptureFrame::ready, this, [this, &result, &loop](QImage image) {
+        result = image;
+        loop.quit();
+    });
+    connect(frame, &TreeLandCaptureFrame::failed, &loop, &QEventLoop::quit);
+    loop.exec();
+    if (result.isNull()) return "";
+    auto saveBasePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    QDir saveBaseDir(saveBasePath);
+    if (!saveBaseDir.exists()) return "";
+    QString picName = "portal screenshot - " + QDateTime::currentDateTime().toString() + ".png";
+    if (result.save(saveBaseDir.absoluteFilePath(picName), "PNG")) {
+        return saveBaseDir.absoluteFilePath(picName);
+    } else {
+        return "";
+    }
+}
 
 uint ScreenshotPortalWayland::Screenshot(const QDBusObjectPath &handle,
                                   const QString &app_id,
@@ -106,7 +142,7 @@ uint ScreenshotPortalWayland::Screenshot(const QDBusObjectPath &handle,
     }
     QString filePath;
     if (options["interactive"].toBool()) {
-        // TODO Select area as crop geometry, might delegate to treeland
+        filePath = captureInteractively();
     } else {
         filePath = fullScreenShot();
     }

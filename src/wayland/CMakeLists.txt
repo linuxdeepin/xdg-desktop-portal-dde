@@ -11,10 +11,13 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     protocols/screencopy.h
     protocols/screencopy.cpp
     protocols/common.h
+    protocols/treelandcapture.h
+    protocols/treelandcapture.cpp
 )
 
 qt_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILES
     ${WlrProtocols_PKGDATADIR}/unstable/wlr-screencopy-unstable-v1.xml
+    ${CMAKE_CURRENT_LIST_DIR}/protocols/treeland-capture-unstable-v1.xml
 )
 
 target_include_directories(xdg-desktop-portal-dde-wayland
