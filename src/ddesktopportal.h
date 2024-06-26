@@ -19,6 +19,7 @@ class WallPaperPortal;
 class NotificationPortal;
 class FileChooserPortal;
 class AppChooserPortal;
+class AccessPortal;
 
 class DDesktopPortal : public QObject, public QDBusContext
 {
@@ -41,4 +42,5 @@ private:
     SecretPortal *m_secret = nullptr;
     WallPaperPortal *const m_wallpaper;
     NotificationPortal *const m_notification;
+    AccessPortal *const m_access;
 };

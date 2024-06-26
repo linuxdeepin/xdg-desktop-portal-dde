@@ -8,6 +8,8 @@
 #include <QDBusObjectPath>
 #include <qobjectdefs.h>
 
+class PersonalizationManager;
+
 class WallPaperPortal : public QDBusAbstractAdaptor
 {
     Q_OBJECT
@@ -15,7 +17,7 @@ class WallPaperPortal : public QDBusAbstractAdaptor
 
 public:
     explicit WallPaperPortal(QObject *parent);
-    ~WallPaperPortal() = default;
+    ~WallPaperPortal();
 
 public slots:
     uint SetWallpaperURI(const QDBusObjectPath &handle,
@@ -23,4 +25,22 @@ public slots:
                          const QString &parent_window,
                          const QString &uri,
                          const QVariantMap &options);
+
+private:
+    uint set_V20_WallpaperURI(const QDBusObjectPath &handle,
+                              const QString &app_id,
+                              const QString &parent_window,
+                              const QString &uri,
+                              const QVariantMap &options);
+
+    uint set_Treeland_WallpaperURI(const QDBusObjectPath &handle,
+                                   const QString &app_id,
+                                   const QString &parent_window,
+                                   const QString &uri,
+                                   const QVariantMap &options);
+
+    uint32_t setOn2Int(const QVariantMap &options);
+
+private:
+    PersonalizationManager *m_personalizationManager = nullptr;
 };
