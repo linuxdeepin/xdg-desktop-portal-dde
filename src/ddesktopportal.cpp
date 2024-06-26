@@ -16,6 +16,7 @@
 #include "filechooser.h"
 #include "wallpaper.h"
 #include "notification.h"
+#include "access.h"
 
 DDesktopPortal::DDesktopPortal(QObject *parent)
     : QObject(parent)
@@ -23,6 +24,7 @@ DDesktopPortal::DDesktopPortal(QObject *parent)
     , m_fileChooser(new FileChooserPortal(this))
     , m_wallpaper(new WallPaperPortal(this))
     , m_notification(new NotificationPortal(this))
+    , m_access(new AccessPortal(this))
 {
     const QByteArray &xdgCurrentDesktop = qgetenv("XDG_CURRENT_DESKTOP").toUpper();
     if (xdgCurrentDesktop == "DDE" || xdgCurrentDesktop == "DEEPIN") {

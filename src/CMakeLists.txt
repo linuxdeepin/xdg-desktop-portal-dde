@@ -52,6 +52,8 @@ set(SRC
     iteminfo.cpp
     account.h
     account.cpp
+    access.cpp
+    access.h
     globalshortcut.h
     globalshortcut.cpp
     lockdown.h
@@ -63,10 +65,17 @@ set(SRC
     dbushelpers.h
     utils.h
     utils.cpp
+    personalization_manager_client.h
+    personalization_manager_client.cpp
 )
 
 add_executable(${PROJECT_NAME}
     ${SRC})
+
+qt6_generate_wayland_protocol_client_sources(${PROJECT_NAME}
+    FILES
+    ${CMAKE_SOURCE_DIR}/protocol/treeland-personalization-manager-v1.xml
+)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
     Qt::Core
