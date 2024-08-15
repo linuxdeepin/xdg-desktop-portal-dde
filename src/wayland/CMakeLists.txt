@@ -32,3 +32,5 @@ PUBLIC
     Qt6::GuiPrivate
     Qt6::WaylandClientPrivate
 )
+
+install(TARGETS xdg-desktop-portal-dde-wayland DESTINATION ${CMAKE_INSTALL_LIBDIR})
