@@ -196,6 +196,11 @@ uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
         OptionList optionList = qdbus_cast<OptionList>(options.value(QStringLiteral("choices")));
         //        optionsWidget.reset(CreateChoiceControls(optionList, checkboxes, comboboxes));
     }
+
+    if (options.contains(QStringLiteral("multiple"))) {
+        multiple = options.value("multiple").toBool();
+    }
+
     QFileDialog fileDialog;
     Utils::setParentWindow(&fileDialog, parent_window);
     auto request = new Request(handle, QVariant(), &fileDialog);
