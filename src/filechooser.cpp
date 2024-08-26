@@ -159,6 +159,10 @@ uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
     parseFilters(options, nameFilters, mimeTypeFilters, allFilters, selectedMimeTypeFilter);
 
     // open directory
+    if (options.contains(QStringLiteral("directory"))) {
+        directory = options.value("directory").toBool();
+    }
+
     if (directory && !options.contains(QStringLiteral("choices"))) {
         QFileDialog dirDialog;
         dirDialog.setWindowTitle(title);
