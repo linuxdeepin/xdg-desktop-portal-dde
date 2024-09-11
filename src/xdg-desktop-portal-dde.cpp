@@ -9,6 +9,8 @@
 #include <QDBusConnection>
 #include <qstringliteral.h>
 #include <QLoggingCategory>
+#include <QTranslator>
+#include <QStandardPaths>
 
 Q_LOGGING_CATEGORY(XdgDesktopDDE, "xdg-dde")
 
@@ -32,6 +34,13 @@ int main(int argc, char *argv[])
 #endif
     QApplication a(argc, argv);
     a.setQuitOnLastWindowClosed(false);
+
+    QTranslator translator;
+    QString languagePath = QStandardPaths::locate(QStandardPaths::GenericDataLocation,
+                                                  QString("xdg-desktop-portal-dde/translations"),
+                                                  QStandardPaths::LocateDirectory);
+    translator.load(languagePath+"/xdg-desktop-portal-dde_" + QLocale::system().name());
+    a.installTranslator(&translator);
 
     QDBusConnection sessionBus = QDBusConnection::sessionBus();
     if (sessionBus.registerService(QStringLiteral("org.freedesktop.impl.portal.desktop.dde"))) {

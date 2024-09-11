@@ -16,6 +16,8 @@ Build-Depends:
   libpipewire-0.3-dev,
   libwayland-dev,
   wlr-protocols,
+  libdtk6widget-dev,
+  libdtk6core-dev,
 Standards-Version: 4.5.0
 
 Package: xdg-desktop-portal-dde
