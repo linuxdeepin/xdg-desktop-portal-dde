@@ -6,6 +6,8 @@ find_package(
     Widgets
     WaylandClient)
 find_package(Qt6WaylandScannerTools REQUIRED)
+find_package(Dtk6 REQUIRED COMPONENTS Core Widget)
+find_package(X11 REQUIRED)
 
 set_source_files_properties(
                       ${CMAKE_SOURCE_DIR}/misc/org.freedesktop.Notifications.xml
@@ -67,6 +69,8 @@ set(SRC
     utils.cpp
     personalization_manager_client.h
     personalization_manager_client.cpp
+        accessdialog.h
+        accessdialog.cpp
 )
 
 add_executable(${PROJECT_NAME}
@@ -78,12 +82,14 @@ qt6_generate_wayland_protocol_client_sources(${PROJECT_NAME}
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
+    ${DtkWidget_LIBRARIES}
     Qt::Core
     Qt::Widgets
     Qt::Gui
     Qt::DBus
     Qt::Concurrent
     Qt::WaylandClient
+    ${X11_LIBRARIES}
     xdg-desktop-portal-dde-wayland
     )
 

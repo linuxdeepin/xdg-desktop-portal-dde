@@ -12,6 +12,7 @@
 #include <QDBusPendingReply>
 #include <QDBusConnection>
 #include <QMessageBox>
+#include "accessdialog.h"
 
 Q_LOGGING_CATEGORY(XdgDestkopDDEAccess, "xdg-dde-access")
 
@@ -26,34 +27,6 @@ uint AccessPortal::AccessDialog(
         const QString &subtitle, const QString &body, const QVariantMap &options, QVariantMap &results)
 {
     qCDebug(XdgDestkopDDEAccess) << "request for access dialog";
-
-    QMessageBox access_dialog;
-
-    if (options.contains(QStringLiteral("modal"))) {
-        access_dialog.setModal(options.value(QStringLiteral("modal")).toBool());
-    }
-
-    QPushButton *rejectButton = nullptr;
-    if (options.contains(QStringLiteral("deny_label"))) {
-        rejectButton = access_dialog.addButton(options.value(QStringLiteral("deny_label")).toString(), QMessageBox::RejectRole);
-    }
-
-
-    QPushButton *allowButton = nullptr;
-    if (options.contains(QStringLiteral("grant_label"))) {
-        allowButton = access_dialog.addButton(options.value(QStringLiteral("grant_label")).toString(), QMessageBox::AcceptRole);
-    }
-
-    access_dialog.setWindowTitle(title);
-    access_dialog.setText(body);
-    access_dialog.exec();
-
-    uint respnse = 2;
-    if (access_dialog.clickedButton() == (QAbstractButton*)rejectButton) {
-        respnse = 0;
-    } else if (access_dialog.clickedButton() == (QAbstractButton*)allowButton) {
-        respnse = 1;
-    }
-
-    return respnse;
+    accessDialog dialog(app_id,parent_window,title,subtitle,body,options);
+    return dialog.exec();
 }
