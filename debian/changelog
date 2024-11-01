@@ -1,3 +1,13 @@
+xdg-desktop-portal-dde (1.0.7) unstable; urgency=medium
+
+  * fix: modify accessdialog to dtk style
+  * feat: implement interactive captur
+  * fix: 修复调用选择文件对话框时无法选择文件夹
+  * fix: wayland上 chromeium112版本上传文件无法多选
+  * fix: wayland.so is not found (#51)
+
+ -- fuleyi <fuleyi@uniontech.com>  Fri, 01 Nov 2024 08:55:52 +0800
+
 xdg-desktop-portal-dde (1.0.6) unstable; urgency=medium
 
   * adapt to new screenshot
