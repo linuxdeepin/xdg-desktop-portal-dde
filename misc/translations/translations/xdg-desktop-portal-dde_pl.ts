@@ -4,7 +4,7 @@
     <message>
         <location filename="../../../src/accessdialog.cpp" line="51"/>
         <source>Deny Access</source>
-        <translation>Odmów dostęp</translation>
+        <translation>Odmów dostępu</translation>
     </message>
     <message>
         <location filename="../../../src/accessdialog.cpp" line="59"/>
