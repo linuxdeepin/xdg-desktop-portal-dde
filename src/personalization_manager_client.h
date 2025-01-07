@@ -6,7 +6,7 @@
 #include <QScreen>
 #include <QtWaylandClient/QWaylandClientExtension>
 
-class PersonalizationWallpaper;
+class PersonalizationWallpaperContext;
 class PersonalizationManager : public QWaylandClientExtensionTemplate<PersonalizationManager>,
                                public QtWayland::treeland_personalization_manager_v1
 {
@@ -16,30 +16,30 @@ public:
     ~PersonalizationManager();
     void onActiveChanged();
 
-    PersonalizationWallpaper *wallpaper() { return m_wallpaperContext; }
+    PersonalizationWallpaperContext *wallpaper() { return m_wallpaperContext; }
 
 private:
-    PersonalizationWallpaper *m_wallpaperContext = nullptr;
+    PersonalizationWallpaperContext *m_wallpaperContext = nullptr;
 };
 
-class PersonalizationWindow : public QWaylandClientExtensionTemplate<PersonalizationWindow>,
-                              public QtWayland::personalization_window_context_v1
+class PersonalizationWindowContext : public QWaylandClientExtensionTemplate<PersonalizationWindowContext>,
+                                     public QtWayland::treeland_personalization_window_context_v1
 {
     Q_OBJECT
 public:
-    explicit PersonalizationWindow(struct ::personalization_window_context_v1 *object);
+    explicit PersonalizationWindowContext(struct ::treeland_personalization_window_context_v1 *context);
 };
 
-class PersonalizationWallpaper : public QWaylandClientExtensionTemplate<PersonalizationWallpaper>,
-                                 public QtWayland::personalization_wallpaper_context_v1
+class PersonalizationWallpaperContext : public QWaylandClientExtensionTemplate<PersonalizationWallpaperContext>,
+                                        public QtWayland::treeland_personalization_wallpaper_context_v1
 {
     Q_OBJECT
 public:
-    explicit PersonalizationWallpaper(struct ::personalization_wallpaper_context_v1 *object);
+    explicit PersonalizationWallpaperContext(struct ::treeland_personalization_wallpaper_context_v1 *context);
 
-signals:
+Q_SIGNALS:
     void metadataChanged(const QString &meta);
 
 protected:
-    void personalization_wallpaper_context_v1_metadata(const QString &metadata) override;
+    void treeland_personalization_wallpaper_context_v1_metadata(const QString &metadata) override;
 };
