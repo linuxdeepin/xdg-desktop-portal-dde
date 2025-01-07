@@ -103,15 +103,15 @@ uint32_t WallPaperPortal::setOn2Int(const QVariantMap &options)
     QString set_on = options.value("set-on").toString();
     uint32_t op = 0;
     if (set_on == "background")
-        op = personalization_wallpaper_context_v1_options::PERSONALIZATION_WALLPAPER_CONTEXT_V1_OPTIONS_BACKGROUND;
+        op = PersonalizationWallpaperContext::options_background;
     else if (set_on == "lockscreen")
-        op = personalization_wallpaper_context_v1_options::PERSONALIZATION_WALLPAPER_CONTEXT_V1_OPTIONS_LOCKSCREEN;
+        op = PersonalizationWallpaperContext::options_lockscreen;
     else if (set_on == "both")
-        op = personalization_wallpaper_context_v1_options::PERSONALIZATION_WALLPAPER_CONTEXT_V1_OPTIONS_LOCKSCREEN |
-             personalization_wallpaper_context_v1_options::PERSONALIZATION_WALLPAPER_CONTEXT_V1_OPTIONS_BACKGROUND;
+        op = PersonalizationWallpaperContext::options_lockscreen |
+             PersonalizationWallpaperContext::options_background;
 
     if (options.value("show-preview").toBool())
-        op = op | personalization_wallpaper_context_v1_options::PERSONALIZATION_WALLPAPER_CONTEXT_V1_OPTIONS_PREVIEW;
+        op = op | PersonalizationWallpaperContext::options_preview;
 
     return op;
 }

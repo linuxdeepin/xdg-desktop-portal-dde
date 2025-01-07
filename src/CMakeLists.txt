@@ -7,6 +7,7 @@ find_package(
     WaylandClient)
 find_package(Qt6WaylandScannerTools REQUIRED)
 find_package(Dtk6 REQUIRED COMPONENTS Core Widget)
+find_package(TreelandProtocols REQUIRED)
 
 set_source_files_properties(
                       ${CMAKE_SOURCE_DIR}/misc/org.freedesktop.Notifications.xml
@@ -77,7 +78,7 @@ add_executable(${PROJECT_NAME}
 
 qt6_generate_wayland_protocol_client_sources(${PROJECT_NAME}
     FILES
-    ${CMAKE_SOURCE_DIR}/protocol/treeland-personalization-manager-v1.xml
+    ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-personalization-manager-v1.xml
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC

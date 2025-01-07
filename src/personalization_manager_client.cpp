@@ -25,19 +25,19 @@ void PersonalizationManager::onActiveChanged()
         return;
 
     if (!m_wallpaperContext) {
-        m_wallpaperContext = new PersonalizationWallpaper(get_wallpaper_context());
+        m_wallpaperContext = new PersonalizationWallpaperContext(get_wallpaper_context());
     }
 }
 
-PersonalizationWallpaper::PersonalizationWallpaper(
-        struct ::personalization_wallpaper_context_v1 *object)
-    : QWaylandClientExtensionTemplate<PersonalizationWallpaper>(1)
-    , QtWayland::personalization_wallpaper_context_v1(object)
+PersonalizationWallpaperContext::PersonalizationWallpaperContext(struct ::treeland_personalization_wallpaper_context_v1 *context)
+    : QWaylandClientExtensionTemplate<PersonalizationWallpaperContext>(1)
+    , QtWayland::treeland_personalization_wallpaper_context_v1(context)
 {
+
 }
 
-void PersonalizationWallpaper::personalization_wallpaper_context_v1_metadata(
-        const QString &metadata)
+void PersonalizationWallpaperContext::treeland_personalization_wallpaper_context_v1_metadata(
+    const QString &metadata)
 {
     Q_EMIT metadataChanged(metadata);
 }

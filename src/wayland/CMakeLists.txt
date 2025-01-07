@@ -1,6 +1,8 @@
 find_package(PkgConfig REQUIRED)
 pkg_get_variable(WlrProtocols_PKGDATADIR wlr-protocols pkgdatadir)
 find_package(Qt6 COMPONENTS REQUIRED Core DBus WaylandClient WaylandScannerTools)
+find_package(TreelandProtocols REQUIRED)
+
 
 add_library(xdg-desktop-portal-dde-wayland SHARED
     portalwaylandcontext.h
@@ -15,9 +17,9 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     protocols/treelandcapture.cpp
 )
 
-qt_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILES
+qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILES
     ${WlrProtocols_PKGDATADIR}/unstable/wlr-screencopy-unstable-v1.xml
-    ${CMAKE_CURRENT_LIST_DIR}/protocols/treeland-capture-unstable-v1.xml
+    ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-capture-unstable-v1.xml
 )
 
 target_include_directories(xdg-desktop-portal-dde-wayland
