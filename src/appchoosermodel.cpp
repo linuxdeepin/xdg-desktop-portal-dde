@@ -69,18 +69,18 @@ void AppChooserModel::loadApplications()
                 const auto infoMap = interfaceMap.begin().value();
                 DesktopInfo info;
                 info.appId = infoMap["ID"].toString();
-                const auto nameMap = infoMap["DisplayName"].value<QDBusArgument>();
+                const auto nameMap = infoMap["Name"].value<QDBusArgument>();
                 PropMap propName;
                 nameMap >> propName;
                 if (propName["Name"].contains(language)) {
-                    info.name = propName["Name"][language];
+                    info.name = propName[language];
                 } else {
-                    info.name = propName["Name"]["default"];
+                    info.name = propName["default"];
                 }
                 const auto iconMap = infoMap["Icons"].value<QDBusArgument>();
                 PropMap propIcon;
                 iconMap >> propIcon;
-                info.icon = propIcon["default"]["default"];
+                info.icon = propIcon["Desktop Entry"];
                 info.selected = false;
                 beginInsertRows(QModelIndex(), m_datas.size(), m_datas.size());
                 m_datas.append(info);
@@ -117,7 +117,7 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, PropMap &dict) {
     argument.beginMap();
     while (!argument.atEnd()) {
         QString arg;
-        QMap<QString, QString> argMap;
+        QString argMap;
         argument.beginMapEntry();
         argument >> arg >> argMap;
         argument.endMapEntry();

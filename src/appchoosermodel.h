@@ -13,7 +13,7 @@
 
 using ObjectInterfaceMap = QMap<QString, QVariantMap>;
 using ObjectMap = QMap<QDBusObjectPath, ObjectInterfaceMap>;
-using PropMap = QMap<QString, QMap<QString, QString>>;
+using PropMap = QMap<QString, QString>;
 
 Q_DECLARE_METATYPE(ObjectMap)
 Q_DECLARE_METATYPE(ObjectInterfaceMap)
