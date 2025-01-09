@@ -1,3 +1,9 @@
+xdg-desktop-portal-dde (1.0.8) unstable; urgency=medium
+
+  * fix: crash in Treeland
+
+ -- zhangkun <zhangkun2@uniontech.com>  Thu, 09 Jan 2025 18:58:52 +0800
+
 xdg-desktop-portal-dde (1.0.7) unstable; urgency=medium
 
   * fix: modify accessdialog to dtk style
