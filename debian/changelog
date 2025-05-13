@@ -1,3 +1,12 @@
+xdg-desktop-portal-dde (1.0.9) unstable; urgency=medium
+
+  * fix: add Settings portal interface to dde.portal
+  * i18n: Updates for project Deepin Desktop Environment (#63)
+  * i18n: Updates for project Deepin Desktop Environment (#62)
+  * i18n: Updates for project Deepin Desktop Environment (#57)
+
+ -- YeShanShan <yeshanshan@uniontech.com>  Tue, 13 May 2025 20:57:16 +0800
+
 xdg-desktop-portal-dde (1.0.8) unstable; urgency=medium
 
   * fix: crash in Treeland
