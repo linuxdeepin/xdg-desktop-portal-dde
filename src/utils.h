@@ -9,7 +9,7 @@
 #include <QWindow>
 
 #define DECLEAR_PARA_WITH_FALLBACK(para, toFun, fallback) \
-    auto para = options.value(QStringLiteral("#para"), fallback).toFun();
+    auto para = options.value(QStringLiteral(#para), fallback).toFun();
 
 #define DECLEAR_PARA(para, toFun) \
     DECLEAR_PARA_WITH_FALLBACK(para, toFun, QVariant())

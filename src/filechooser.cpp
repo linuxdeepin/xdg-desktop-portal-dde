@@ -275,9 +275,12 @@ uint FileChooserPortal::SaveFile(const QDBusObjectPath &handle,
     // A suggested filename.
     DECLEAR_PARA(current_name, toString);
     // A suggested folder to save the file in.
-    DECLEAR_PARA(current_folder, toString);
+    DECLEAR_PARA(current_folder, toByteArray);
+    while (current_folder.endsWith('\0')) {
+        current_folder.chop(1);
+    }
     // The current file (when saving an existing file).
-    DECLEAR_PARA(current_file, toString);
+    DECLEAR_PARA(current_file, toByteArray);
 
     QStringList nameFilters;
     QStringList mimeTypeFilters;
@@ -299,8 +302,11 @@ uint FileChooserPortal::SaveFile(const QDBusObjectPath &handle,
     fileDialog.setModal(modal);
     fileDialog.setAcceptMode(QFileDialog::AcceptSave);
     fileDialog.setOption(QFileDialog::DontConfirmOverwrite, false);
-    fileDialog.setDirectory(current_folder);
-    fileDialog.selectFile(current_file);
+    fileDialog.setDirectory(QString::fromLocal8Bit(current_folder));
+    if (!current_name.isEmpty())
+        fileDialog.selectFile(current_name);
+    if (!current_file.isEmpty())
+        fileDialog.selectFile(current_file);
     fileDialog.setFileMode(QFileDialog::FileMode::ExistingFile);
     if (!acceptText.isEmpty()) {
         fileDialog.setLabelText(QFileDialog::Accept, acceptText);
@@ -343,7 +349,10 @@ uint FileChooserPortal::SaveFiles(const QDBusObjectPath &handle, const QString &
     const QString &acceptText = parseAcceptLabel(options);
 
     // Suggested folder to save the files in. The byte array is expected to be null-terminated.
-    DECLEAR_PARA(current_folder, toString);
+    DECLEAR_PARA(current_folder, toByteArray);
+    while (current_folder.endsWith('\0')) {
+        current_folder.chop(1);
+    }
     // An array of file names to be saved. The array and byte arrays are expected to be null-terminated.
     DECLEAR_PARA(files, toStringList);
 
@@ -368,7 +377,7 @@ uint FileChooserPortal::SaveFiles(const QDBusObjectPath &handle, const QString &
     fileDialog.setModal(modal);
     fileDialog.setAcceptMode(QFileDialog::AcceptSave);
     fileDialog.setOption(QFileDialog::DontConfirmOverwrite, false);
-    fileDialog.setDirectory(current_folder);
+    fileDialog.setDirectory(QString::fromLocal8Bit(current_folder));
     fileDialog.setFileMode(QFileDialog::FileMode::ExistingFiles);
     if (!acceptText.isEmpty()) {
         fileDialog.setLabelText(QFileDialog::Accept, acceptText);
