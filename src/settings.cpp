@@ -13,6 +13,7 @@
 #include <QDBusMetaType>
 #include <QLoggingCategory>
 #include <QPalette>
+#include <QEvent>
 
 #define NO_PREFERENCE 0
 #define PREFER_DARK_APPEARANCE 1
@@ -71,7 +72,15 @@ SettingsPortal::SettingsPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {
     qDBusRegisterMetaType<VariantMapMap>();
-    connect(qApp, &QApplication::paletteChanged, this, &SettingsPortal::onPaletteChanged);
+    qApp->installEventFilter(this);
+}
+
+bool SettingsPortal::eventFilter(QObject *obj, QEvent *event)
+{
+    if (event->type() == QEvent::ApplicationPaletteChange) {
+        onPaletteChanged(qApp->palette());
+    }
+    return QDBusAbstractAdaptor::eventFilter(obj, event);
 }
 
 void SettingsPortal::Read(const QString &group, const QString &key)
