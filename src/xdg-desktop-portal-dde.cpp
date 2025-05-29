@@ -39,7 +39,9 @@ int main(int argc, char *argv[])
     QString languagePath = QStandardPaths::locate(QStandardPaths::GenericDataLocation,
                                                   QString("xdg-desktop-portal-dde/translations"),
                                                   QStandardPaths::LocateDirectory);
-    translator.load(languagePath+"/xdg-desktop-portal-dde_" + QLocale::system().name());
+    if (!translator.load(languagePath+"/xdg-desktop-portal-dde_" + QLocale::system().name())) {
+        qCWarning(XdgDesktopDDE) << "Failed to load translation file for locale:" << QLocale::system().name();
+    }
     a.installTranslator(&translator);
 
     QDBusConnection sessionBus = QDBusConnection::sessionBus();
