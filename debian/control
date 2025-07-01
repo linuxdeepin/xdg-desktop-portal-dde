@@ -19,6 +19,11 @@ Build-Depends:
   libdtk6widget-dev,
   libdtk6core-dev,
   treeland-protocols,
+  libgbm-dev,
+  libdrm-dev,
+  wayland-protocols,
+  qt6-declarative-dev,
+  libdtk6declarative-dev,
 Standards-Version: 4.5.0
 
 Package: xdg-desktop-portal-dde
