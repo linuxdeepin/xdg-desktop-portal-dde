@@ -5,6 +5,8 @@
 #include "screenshotportal.h"
 #include "protocols/common.h"
 #include "protocols/treelandcapture.h"
+#include "loggings.h"
+#include "dbushelpers.h"
 
 #include <QApplication>
 #include <QScreen>
@@ -19,8 +21,22 @@ Q_LOGGING_CATEGORY(portalWayland, "dde.portal.wayland");
 struct ScreenCaptureInfo {
     QtWaylandClient::QWaylandScreen *screen {nullptr};
     QPointer<ScreenCopyFrame> capturedFrame {nullptr};
-    QImage capturedImage {};
+    QtWaylandClient::QWaylandShmBuffer *shmBuffer {nullptr};
+    QtWayland::zwlr_screencopy_frame_v1::flags flags;
 };
+
+static void destroyScreenCaptureInfo(std::list<std::shared_ptr<ScreenCaptureInfo>> captureList)
+{
+    for (const auto &info : std::as_const(captureList)) {
+        if (info->shmBuffer) {
+            delete info->shmBuffer;
+        }
+
+        if (info->capturedFrame) {
+            delete info->capturedFrame;
+        }
+    }
+}
 
 ScreenshotPortalWayland::ScreenshotPortalWayland(PortalWaylandContext *context)
     : AbstractWaylandPortal(context)
@@ -35,7 +51,13 @@ uint ScreenshotPortalWayland::PickColor(const QDBusObjectPath &handle,
                                  QVariantMap &results)
 {
     // TODO Implement PickColor
-    return 0;
+    qCDebug(SCREESHOT) << "PickColor called with parameters:";
+    qCDebug(SCREESHOT) << "    handle: " << handle.path();
+    qCDebug(SCREESHOT) << "    app_id: " << app_id;
+    qCDebug(SCREESHOT) << "    parent_window: " << parent_window;
+    qCDebug(SCREESHOT) << "    options: " << options;
+
+    return PortalResponse::Cancelled;
 }
 
 QString ScreenshotPortalWayland::fullScreenShot()
@@ -55,13 +77,40 @@ QString ScreenshotPortalWayland::fullScreenShot()
         info->screen = screen;
         ++pendingCapture;
         captureList.push_back(info);
-        connect(info->capturedFrame, &ScreenCopyFrame::ready, this, [&formatLast, info, &pendingCapture, &eventLoop, this](QImage image) {
-            info->capturedImage = image;
-            formatLast = info->capturedImage.format();
-            if (--pendingCapture == 0) {
-                eventLoop.quit();
-            }
-        });
+        connect(info->capturedFrame, &ScreenCopyFrame::buffer, this,
+                [info](uint32_t format, uint32_t width, uint32_t height, uint32_t stride){
+                    // Create a new wl_buffer for reception
+                    // For some reason, Qt regards stride == width * 4, and it creates buffer likewise, we must check this
+                    if (stride != width * 4) {
+                        qCDebug(SCREESHOT)
+                        << "Receive a buffer format which is not compatible with QWaylandShmBuffer."
+                        << "format:" << format << "width:" << width << "height:" << height
+                        << "stride:" << stride;
+                        return;
+                    }
+                    if (info->shmBuffer)
+                        return; // We only need one supported format
+
+                    info->shmBuffer = new QtWaylandClient::QWaylandShmBuffer(
+                            waylandDisplay(),
+                            QSize(width, height),
+                            QtWaylandClient::QWaylandShm::formatFrom(static_cast<::wl_shm_format>(format)));
+                    info->capturedFrame->copy(info->shmBuffer->buffer());
+                });
+        connect(info->capturedFrame, &ScreenCopyFrame::frameFlags, this,
+                [info](uint32_t flags){
+                    info->flags = static_cast<QtWayland::zwlr_screencopy_frame_v1::flags>(flags);
+                });
+        connect(info->capturedFrame, &ScreenCopyFrame::ready, this,
+                [info, &pendingCapture, &eventLoop, &formatLast](uint32_t tv_sec_hi, uint32_t tv_sec_lo, uint32_t tv_nsec) {
+                    Q_UNUSED(tv_sec_hi);
+                    Q_UNUSED(tv_sec_lo);
+                    Q_UNUSED(tv_nsec);
+                    formatLast = info->shmBuffer->image()->format();
+                    if (--pendingCapture == 0) {
+                        eventLoop.quit();
+                    }
+                });
         connect(info->capturedFrame, &ScreenCopyFrame::failed, this, [&pendingCapture, &eventLoop]{
             if (--pendingCapture == 0) {
                 eventLoop.quit();
@@ -74,12 +123,12 @@ QString ScreenshotPortalWayland::fullScreenShot()
     QPainter p(&image);
     p.setRenderHint(QPainter::Antialiasing);
     for (const auto &info : std::as_const(captureList)) {
-        if (!info->capturedImage.isNull()) {
+        if (info->shmBuffer) {
             QRect targetRect = info->screen->geometry();
             // Convert to screen image local coordinates
             auto sourceRect = targetRect;
             sourceRect.moveTo(sourceRect.topLeft() - info->screen->geometry().topLeft());
-            p.drawImage(targetRect, info->capturedImage, sourceRect);
+            p.drawImage(targetRect, *info->shmBuffer->image(), sourceRect);
         } else {
             qCWarning(portalWayland) << "image is null!!!";
         }
@@ -90,11 +139,14 @@ QString ScreenshotPortalWayland::fullScreenShot()
     if (!saveBaseDir.exists()) return "";
     QString picName = "portal screenshot - " + QDateTime::currentDateTime().toString() + ".png";
     if (image.save(saveBaseDir.absoluteFilePath(picName), SaveFormat)) {
+        destroyScreenCaptureInfo(captureList);
         return saveBaseDir.absoluteFilePath(picName);
     } else {
+        destroyScreenCaptureInfo(captureList);
         return "";
     }
 }
+
 QString ScreenshotPortalWayland::captureInteractively()
 {
     auto captureManager = context()->treelandCaptureManager();

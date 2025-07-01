@@ -3,58 +3,23 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "screencopy.h"
-#include "common.h"
-
-
-Q_LOGGING_CATEGORY(portalWaylandProtocol, "dde.portal.wayland.protocol");
-ScreenCopyManager::ScreenCopyManager(QObject *parent)
-    : QWaylandClientExtensionTemplate<ScreenCopyManager, destruct_screen_copy_manager>(1)
-    , QtWayland::zwlr_screencopy_manager_v1()
-{ }
 
 ScreenCopyFrame::ScreenCopyFrame(struct ::zwlr_screencopy_frame_v1 *object)
     : QObject(nullptr)
     , QtWayland::zwlr_screencopy_frame_v1(object)
-    , m_shmBuffer(nullptr)
-    , m_pendingShmBuffer(nullptr)
 { }
 
-QPointer<ScreenCopyFrame> ScreenCopyManager::captureOutput(int32_t overlay_cursor, struct ::wl_output *output)
+void ScreenCopyFrame::zwlr_screencopy_frame_v1_buffer(uint32_t format,
+                                                      uint32_t width,
+                                                      uint32_t height,
+                                                      uint32_t stride)
 {
-    auto screen_copy_frame = capture_output(overlay_cursor, output);
-    auto screenCopyFrame = new ScreenCopyFrame(screen_copy_frame);
-    m_screenCopyFrames.append(screenCopyFrame);
-    return screenCopyFrame;
+    Q_EMIT buffer(format, width, height, stride);
 }
 
-QPointer<ScreenCopyFrame> ScreenCopyManager::captureOutputRegion(int32_t overlay_cursor, struct ::wl_output *output, int32_t x, int32_t y, int32_t width, int32_t height)
+void ScreenCopyFrame::zwlr_screencopy_frame_v1_flags(uint32_t f)
 {
-    auto screen_copy_frame = capture_output_region(overlay_cursor, output, x, y, width, height);
-    auto screenCopyFrame = new ScreenCopyFrame(screen_copy_frame);
-    m_screenCopyFrames.append(screenCopyFrame);
-    return screenCopyFrame;
-}
-
-void ScreenCopyFrame::zwlr_screencopy_frame_v1_buffer(uint32_t format, uint32_t width, uint32_t height, uint32_t stride)
-{
-    // Create a new wl_buffer for reception
-    // For some reason, Qt regards stride == width * 4, and it creates buffer likewise, we must check this
-    if (stride != width * 4) {
-        qCDebug(portalWaylandProtocol)
-                << "Receive a buffer format which is not compatible with QWaylandShmBuffer."
-                << "format:" << format << "width:" << width << "height:" << height
-                << "stride:" << stride;
-        return;
-    }
-    if (m_pendingShmBuffer)
-        return; // We only need one supported format
-    m_pendingShmBuffer = new QtWaylandClient::QWaylandShmBuffer(waylandDisplay(), QSize(width, height), QtWaylandClient::QWaylandShm::formatFrom(static_cast<::wl_shm_format>(format)));
-    copy(m_pendingShmBuffer->buffer());
-}
-
-void ScreenCopyFrame::zwlr_screencopy_frame_v1_flags(uint32_t flags)
-{
-    m_flags = static_cast<QtWayland::zwlr_screencopy_frame_v1::flags>(flags);
+    Q_EMIT frameFlags(f);
 }
 
 void ScreenCopyFrame::zwlr_screencopy_frame_v1_failed()
@@ -62,20 +27,66 @@ void ScreenCopyFrame::zwlr_screencopy_frame_v1_failed()
     Q_EMIT failed();
 }
 
-void ScreenCopyFrame::zwlr_screencopy_frame_v1_ready(uint32_t tv_sec_hi, uint32_t tv_sec_lo, uint32_t tv_nsec)
+void ScreenCopyFrame::zwlr_screencopy_frame_v1_damage(uint32_t x,
+                                                      uint32_t y,
+                                                      uint32_t width,
+                                                      uint32_t height)
 {
-    Q_UNUSED(tv_sec_hi);
-    Q_UNUSED(tv_sec_lo);
-    Q_UNUSED(tv_nsec);
-    if (m_shmBuffer)
-        delete m_shmBuffer;
-    m_shmBuffer = m_pendingShmBuffer;
-    m_pendingShmBuffer = nullptr;
-    Q_EMIT ready(*m_shmBuffer->image());
+    Q_EMIT damage(x, y, width, height);
 }
 
-void destruct_screen_copy_manager(ScreenCopyManager *screenCopyManager)
+void ScreenCopyFrame::zwlr_screencopy_frame_v1_linux_dmabuf(uint32_t format,
+                                                            uint32_t width,
+                                                            uint32_t height)
 {
-    qDeleteAll(screenCopyManager->m_screenCopyFrames);
-    screenCopyManager->m_screenCopyFrames.clear();
+    Q_EMIT linuxDmabuf(format, width, height);
+}
+
+void ScreenCopyFrame::zwlr_screencopy_frame_v1_buffer_done()
+{
+    Q_EMIT bufferDone();
+}
+
+void ScreenCopyFrame::zwlr_screencopy_frame_v1_ready(uint32_t tv_sec_hi,
+                                                     uint32_t tv_sec_lo,
+                                                     uint32_t tv_nsec)
+{
+    Q_EMIT ready(tv_sec_hi, tv_sec_lo, tv_nsec);
+}
+
+ScreenCopyManager::ScreenCopyManager(QObject *parent)
+    : QWaylandClientExtensionTemplate<ScreenCopyManager>(3)
+    , QtWayland::zwlr_screencopy_manager_v1()
+{ }
+
+uint32_t ScreenCopyManager::version()
+{
+    return QtWayland::zwlr_screencopy_manager_v1::version();
+}
+
+QPointer<ScreenCopyFrame> ScreenCopyManager::captureOutput(
+        int32_t overlay_cursor,
+        struct ::wl_output *output)
+{
+    auto screen_copy_frame = capture_output(overlay_cursor, output);
+    auto screenCopyFrame = new ScreenCopyFrame(screen_copy_frame);
+    return screenCopyFrame;
+}
+
+QPointer<ScreenCopyFrame> ScreenCopyManager::captureOutputRegion(
+        int32_t overlay_cursor,
+        struct ::wl_output *output,
+        int32_t x,
+        int32_t y,
+        int32_t width,
+        int32_t height)
+{
+    auto screen_copy_frame = capture_output_region(overlay_cursor,
+                                                   output,
+                                                   x,
+                                                   y,
+                                                   width,
+                                                   height);
+    auto screenCopyFrame = new ScreenCopyFrame(screen_copy_frame);
+    return screenCopyFrame;
 }

@@ -4,8 +4,8 @@
 
 #include "treelandcapture.h"
 #include "common.h"
+#include "loggings.h"
 
-Q_DECLARE_LOGGING_CATEGORY(portalWaylandProtocol);
 void destruct_treeland_capture_manager(TreeLandCaptureManager *manager)
 {
     qDeleteAll(manager->captureContexts);
@@ -60,7 +60,7 @@ void TreeLandCaptureContext::releaseCaptureFrame() {
 void TreeLandCaptureFrame::treeland_capture_frame_v1_buffer(uint32_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
     if (stride != width * 4) {
-        qCDebug(portalWaylandProtocol)
+        qCDebug(PORTAL_COMMON)
                 << "Receive a buffer format which is not compatible with QWaylandShmBuffer."
                 << "format:" << format << "width:" << width << "height:" << height
                 << "stride:" << stride;

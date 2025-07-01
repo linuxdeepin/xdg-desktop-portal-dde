@@ -13,7 +13,8 @@
 class AbstractWaylandPortal : public QDBusAbstractAdaptor
 {
 public:
-    AbstractWaylandPortal(PortalWaylandContext *context) : QDBusAbstractAdaptor(context), m_context(context) { }
+    AbstractWaylandPortal(PortalWaylandContext *context)
+        : QDBusAbstractAdaptor(context), m_context(context) {}
     QPointer<PortalWaylandContext> context() { return m_context; }
 
 private:
