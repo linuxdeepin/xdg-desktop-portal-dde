@@ -1,3 +1,9 @@
+xdg-desktop-portal-dde (1.0.13) unstable; urgency=medium
+
+  * fix: modify safe build with debian/rules.
+
+ -- WuJiangYu <wujiangyu@uniontech.com>  Thu, 03 Jul 2025 16:33:06 +0800
+
 xdg-desktop-portal-dde (1.0.12) unstable; urgency=medium
 
   * feat: [filechooser] Not show name filter detail info.
