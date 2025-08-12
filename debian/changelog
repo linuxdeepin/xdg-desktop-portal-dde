@@ -1,3 +1,11 @@
+xdg-desktop-portal-dde (1.0.14) unstable; urgency=medium
+
+  * i18n: Translate xdg-desktop-portal-dde_en.ts in lo (#75)
+  * feat(wayland): initial implementation of screencast portal with
+    PipeWire & DMABuf support
+
+ -- wujiangyu <wujiangyu@uniontech.com>  Tue, 12 Aug 2025 10:40:16 +0800
+
 xdg-desktop-portal-dde (1.0.13) unstable; urgency=medium
 
   * fix: modify safe build with debian/rules.
