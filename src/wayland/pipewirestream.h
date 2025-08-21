@@ -60,8 +60,8 @@ public:
         uint32_t transformation;
         QRect damage[4];
         uint32_t damage_count;
-        struct PipeWireSourceBuffer *PipeWireSourceBuffer = nullptr;
-        struct pw_buffer *pw_buffer = nullptr;
+        struct PipeWireSourceBuffer *pipeWireSourceBuffer = nullptr;
+        struct pw_buffer *pwBuffer = nullptr;
     };
 
     PipeWireStream(QPointer<ScreenCastContext> context,
