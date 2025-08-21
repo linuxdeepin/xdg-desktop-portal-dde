@@ -463,7 +463,7 @@ void PipeWireStream::onStreamParamChanged(uint32_t id, const spa_pod *param)
     }
 
     qCDebug(SCREENCAST, "pipewire: Format negotiated:");
-    qCDebug(SCREENCAST, "pipewire: m_bufferType: %u (%u)", m_bufferType, data_type);
+    qCDebug(SCREENCAST, "pipewire: bufferType: %u (%u)", m_bufferType, data_type);
     qCDebug(SCREENCAST, "pipewire: format: %u", m_pipewireVideoInfo.format);
     qCDebug(SCREENCAST, "pipewire: modifier: %lu", m_pipewireVideoInfo.modifier);
     qCDebug(SCREENCAST, "pipewire: size: (%u, %u)", m_pipewireVideoInfo.size.width, m_pipewireVideoInfo.size.height);
