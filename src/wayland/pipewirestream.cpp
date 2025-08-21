@@ -506,6 +506,7 @@ void PipeWireStream::onStreamRemoveBuffer(pw_buffer *buffer)
 
     if (m_currentFrame.pw_buffer == buffer) {
         m_currentFrame.pw_buffer = nullptr;
+        m_currentFrame.PipeWireSourceBuffer = nullptr;
     }
 
     for (uint32_t plane = 0; plane < buffer->buffer->n_datas; plane++) {
