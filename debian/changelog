@@ -1,3 +1,11 @@
+xdg-desktop-portal-dde (1.0.15) unstable; urgency=medium
+
+  * fix: memory leaks
+  * chore: use camelCase for PipeWireSourceBuffer and pwBuffer members
+  * feat: Clear pipewiresourcebuffer when removing pw_buffer
+
+ -- rewine <luhongxu@uniontech.com>  Thu, 21 Aug 2025 13:44:55 +0800
+
 xdg-desktop-portal-dde (1.0.14) unstable; urgency=medium
 
   * i18n: Translate xdg-desktop-portal-dde_en.ts in lo (#75)
