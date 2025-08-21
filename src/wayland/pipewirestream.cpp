@@ -504,9 +504,9 @@ void PipeWireStream::onStreamRemoveBuffer(pw_buffer *buffer)
         destroyPipeWireSourceBuffer(PipeWireSourceBuffer);
     }
 
-    if (m_currentFrame.pw_buffer == buffer) {
-        m_currentFrame.pw_buffer = nullptr;
-        m_currentFrame.PipeWireSourceBuffer = nullptr;
+    if (m_currentFrame.pwBuffer == buffer) {
+        m_currentFrame.pwBuffer = nullptr;
+        m_currentFrame.pipeWireSourceBuffer = nullptr;
     }
 
     for (uint32_t plane = 0; plane < buffer->buffer->n_datas; plane++) {
@@ -569,13 +569,13 @@ void PipeWireStream::onStreamProcess()
         return;
     }
 
-    if (m_currentFrame.pw_buffer) {
+    if (m_currentFrame.pwBuffer) {
         qCDebug(SCREENCAST, "pipewire: buffer already exported");
         return;
     }
 
     dequeueBuffer();
-    if (!m_currentFrame.pw_buffer) {
+    if (!m_currentFrame.pwBuffer) {
         qCDebug(SCREENCAST, "pipewire: unable to export buffer");
         return;
     }
@@ -597,10 +597,10 @@ void PipeWireStream::onStreamProcess()
 
 void PipeWireStream::enqueueBuffer()
 {
-    if (!m_currentFrame.pw_buffer) {
+    if (!m_currentFrame.pwBuffer) {
         qCWarning(SCREENCAST, "pipewire: no buffer to queue");
     } else {
-        struct pw_buffer *pw_buf = m_currentFrame.pw_buffer;
+        struct pw_buffer *pw_buf = m_currentFrame.pwBuffer;
         struct spa_buffer *spa_buf = pw_buf->buffer;
         struct spa_data *d = spa_buf->datas;
 
@@ -680,27 +680,27 @@ void PipeWireStream::enqueueBuffer()
             qCDebug(SCREENCAST, "pipewire: offset %d", d[plane].chunk->offset);
             qCDebug(SCREENCAST, "pipewire: chunk flags %d", d[plane].chunk->flags);
         }
-        qCDebug(SCREENCAST, "pipewire: width %d", m_currentFrame.PipeWireSourceBuffer->width);
-        qCDebug(SCREENCAST, "pipewire: height %d", m_currentFrame.PipeWireSourceBuffer->height);
+        qCDebug(SCREENCAST, "pipewire: width %d", m_currentFrame.pipeWireSourceBuffer->width);
+        qCDebug(SCREENCAST, "pipewire: height %d", m_currentFrame.pipeWireSourceBuffer->height);
         qCDebug(SCREENCAST, "pipewire: y_invert %d", m_currentFrame.y_invert);
         qCDebug(SCREENCAST) << "pipewire: buffer type" << m_bufferType;
         int queueRet = pw_stream_queue_buffer(m_stream, pw_buf);
     }
 
-    m_currentFrame.PipeWireSourceBuffer = nullptr;
-    m_currentFrame.pw_buffer = nullptr;
+    m_currentFrame.pipeWireSourceBuffer = nullptr;
+    m_currentFrame.pwBuffer = nullptr;
 }
 
 void PipeWireStream::dequeueBuffer()
 {
-    assert(!m_currentFrame.pw_buffer);
-    m_currentFrame.pw_buffer = pw_stream_dequeue_buffer(m_stream);
-    if (!m_currentFrame.pw_buffer) {
+    assert(!m_currentFrame.pwBuffer);
+    m_currentFrame.pwBuffer = pw_stream_dequeue_buffer(m_stream);
+    if (!m_currentFrame.pwBuffer) {
         qCCritical(SCREENCAST, "pipewire: out of buffers");
         return;
     }
 
-    m_currentFrame.PipeWireSourceBuffer = static_cast<PipeWireStream::PipeWireSourceBuffer *>(m_currentFrame.pw_buffer->user_data);
+    m_currentFrame.pipeWireSourceBuffer = static_cast<PipeWireStream::PipeWireSourceBuffer *>(m_currentFrame.pwBuffer->user_data);
 }
 
 bool PipeWireStream::buildModifierlist(uint32_t drmFormat, uint64_t **modifiers, uint32_t *modifierCount)
@@ -744,19 +744,19 @@ void PipeWireStream::handleFrameBufferDone()
         return;
     }
 
-    if (!m_currentFrame.PipeWireSourceBuffer) {
+    if (!m_currentFrame.pipeWireSourceBuffer) {
         qCWarning(SCREENCAST, "no current buffer");
         screenCopyFrameFinish();
         return;
     }
 
-    assert(m_currentFrame.PipeWireSourceBuffer);
+    assert(m_currentFrame.pipeWireSourceBuffer);
 
     if ((m_bufferType == PortalCommon::SHM &&
-         (m_currentFrame.PipeWireSourceBuffer->size[0] != m_screencopyFrameInfo[m_bufferType].size ||
-          m_currentFrame.PipeWireSourceBuffer->stride[0] != m_screencopyFrameInfo[m_bufferType].stride)) ||
-        m_currentFrame.PipeWireSourceBuffer->width != m_screencopyFrameInfo[m_bufferType].width ||
-        m_currentFrame.PipeWireSourceBuffer->height != m_screencopyFrameInfo[m_bufferType].height) {
+         (m_currentFrame.pipeWireSourceBuffer->size[0] != m_screencopyFrameInfo[m_bufferType].size ||
+          m_currentFrame.pipeWireSourceBuffer->stride[0] != m_screencopyFrameInfo[m_bufferType].stride)) ||
+        m_currentFrame.pipeWireSourceBuffer->width != m_screencopyFrameInfo[m_bufferType].width ||
+        m_currentFrame.pipeWireSourceBuffer->height != m_screencopyFrameInfo[m_bufferType].height) {
         qCWarning(SCREENCAST, "pipewire buffer has wrong dimensions");
         m_frameState = XDPW_FRAME_STATE_FAILED;
         screenCopyFrameFinish();
@@ -766,7 +766,7 @@ void PipeWireStream::handleFrameBufferDone()
     m_currentFrame.transformation = WL_OUTPUT_TRANSFORM_NORMAL;
 
     m_currentFrame.damage_count = 0;
-    m_frame->copy_with_damage(m_currentFrame.PipeWireSourceBuffer->buffer);
+    m_frame->copy_with_damage(m_currentFrame.pipeWireSourceBuffer->buffer);
     qCDebug(SCREENCAST, "ScreenCopyFrame buffer done, frame copied");
 
     fps_limit_measure_start(&fps_limit, m_framerate);
