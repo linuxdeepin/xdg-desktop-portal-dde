@@ -174,7 +174,6 @@ bool ScreenCastContext::queryDMABufModifiers(uint32_t drmFormat,
                                              uint64_t *modifiers,
                                              uint32_t *maxModifiers)
 {
-    qCWarning(SCREENCAST) << "queryDMABufModifiers" << m_formatModifierPairs.count();
     if (m_formatModifierPairs.isEmpty()) {
         return false;
     }
@@ -225,7 +224,7 @@ void ScreenCastContext::handleLinuxDmaBufModifierChanged(uint32_t format,
                                                          uint32_t modifierLow)
 {
     uint64_t modifier = (((uint64_t)modifierHigh) << 32) | modifierLow;
-    qCWarning(SCREENCAST) << "handleLinuxDmaBufModifierChanged" << format << modifier;
+    qCDebug(SCREENCAST) << "handleLinuxDmaBufModifierChanged" << format << modifier;
     addFormatModifierPair(format, modifier);
 }
 
@@ -244,7 +243,7 @@ void ScreenCastContext::handlevDmaBufFeedbackFormatTableReceived(int fd, uint si
 
     m_feedbackData.formatTableData = mmap(nullptr , size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (m_feedbackData.formatTableData == MAP_FAILED) {
-        qCWarning(SCREENCAST) << "mmap failed in handlevDmaBufFeedbackFormatTableReceived";
+        qCCritical(SCREENCAST) << "mmap failed in handlevDmaBufFeedbackFormatTableReceived";
         m_feedbackData.formatTableData = nullptr;
         m_feedbackData.formatTableSize = 0;
         return;
@@ -260,7 +259,7 @@ void ScreenCastContext::handlevDmaBufFeedbackMainDeviceReceived(const wl_array *
 
     drmDevice *drmDev = nullptr;
     if (drmGetDeviceFromDevId(device, 0, &drmDev) != 0) {
-        qCWarning(SCREENCAST) << "unable to open main device" << drmDev->nodes;
+        qCCritical(SCREENCAST) << "unable to open main device" << drmDev->nodes;
         m_forceModLinear = true;
         return;
     }
@@ -297,7 +296,6 @@ void ScreenCastContext::handlevDmaBufFeedbackTrancheTargetDeviceReceived(const w
 
 void ScreenCastContext::handlevDmaBufFeedbackTrancheFormatsReceived(const wl_array *indices)
 {
-    qCWarning(SCREENCAST) << "xyb handlevDmaBufFeedbackTrancheFormatsReceived";
     if (!m_feedbackData.deviceUsed || !m_feedbackData.formatTableData) {
         return;
     }
@@ -313,7 +311,6 @@ void ScreenCastContext::handlevDmaBufFeedbackTrancheFormatsReceived(const wl_arr
 
     const uint16_t *idx = static_cast<const uint16_t *>(indices->data);
     size_t count = indices->size / sizeof(uint16_t);
-    qCWarning(SCREENCAST) << "xyb----add format";
     for (size_t i = 0; i < count; ++i) {
         if (idx[i] >= n_modifiers) {
             continue;
@@ -324,7 +321,7 @@ void ScreenCastContext::handlevDmaBufFeedbackTrancheFormatsReceived(const wl_arr
 
 void ScreenCastContext::initConnection()
 {
-    qCWarning(SCREENCAST) << "xyb linux dmabuf version" << m_linuxDmaBuf->version();
+    qCDebug(SCREENCAST) << "linux dmabuf version" << m_linuxDmaBuf->version();
     if (m_linuxDmaBuf->version() >= 4) {
         m_linuxDmaBufFeedback = new LinuxDmaBufFeedbackV1(m_linuxDmaBuf->get_default_feedback(), m_linuxDmaBuf);
         connect(m_linuxDmaBufFeedback, &LinuxDmaBufFeedbackV1::feedbackDone,
