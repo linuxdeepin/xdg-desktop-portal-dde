@@ -258,13 +258,14 @@ void ScreenCastContext::handlevDmaBufFeedbackMainDeviceReceived(const wl_array *
     assert(deviceArr->size == sizeof(device));
     memcpy(&device, deviceArr->data, sizeof(device));
 
-    drmDevice *drmDev;
+    drmDevice *drmDev = nullptr;
     if (drmGetDeviceFromDevId(device, 0, &drmDev) != 0) {
         qCWarning(SCREENCAST) << "unable to open main device" << drmDev->nodes;
         m_forceModLinear = true;
         return;
     }
     m_gbmDevice = createGBMDeviceFromDRMDevice(drmDev);
+    drmFreeDevice(&drmDev);
 }
 
 void ScreenCastContext::handlevDmaBufFeedbackTrancheDone()
@@ -278,7 +279,7 @@ void ScreenCastContext::handlevDmaBufFeedbackTrancheTargetDeviceReceived(const w
     assert(deviceArr->size == sizeof(device));
     memcpy(&device, deviceArr->data, sizeof(device));
 
-    drmDevice *drmDev;
+    drmDevice *drmDev = nullptr;
     if (drmGetDeviceFromDevId(device, 0, &drmDev) != 0) {
         return;
     }
@@ -291,6 +292,7 @@ void ScreenCastContext::handlevDmaBufFeedbackTrancheTargetDeviceReceived(const w
         m_gbmDevice = createGBMDeviceFromDRMDevice(drmDev);
         m_feedbackData.deviceUsed = m_gbmDevice;
     }
+    drmFreeDevice(&drmDev);
 }
 
 void ScreenCastContext::handlevDmaBufFeedbackTrancheFormatsReceived(const wl_array *indices)
