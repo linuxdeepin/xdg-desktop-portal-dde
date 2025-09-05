@@ -40,8 +40,8 @@ static void update_timer(struct xdpw_state *state) {
         return;
     }
     bool updated = false;
-    struct xdpw_timer *timer;
-    wl_list_for_each(timer, &state->timers, link) {
+    struct xdpw_timer *timer, *tmp;
+    wl_list_for_each_safe(timer, tmp, &state->timers, link) {
         if (state->next_timer == NULL ||
             timespec_less(&timer->at, &state->next_timer->at)) {
             state->next_timer = timer;
