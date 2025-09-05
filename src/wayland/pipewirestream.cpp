@@ -584,11 +584,9 @@ void PipeWireStream::onStreamProcess()
         uint64_t delay_ns = fps_limit_measure_end(&fps_limit, m_framerate);
         if (delay_ns > 0) {
             qCDebug(SCREENCAST) << "seq:" << m_seq << "delay_ns" << delay_ns;
-            if (delay_ns > 0) {
-                xdpw_add_timer(&m_context->m_state, delay_ns,
-                               (xdpw_event_loop_timer_func_t) frameCaptureCallback, this);
-                return;
-            }
+            xdpw_add_timer(&m_context->m_state, delay_ns,
+                           (xdpw_event_loop_timer_func_t) frameCaptureCallback, this);
+            return;
         }
     }
 
