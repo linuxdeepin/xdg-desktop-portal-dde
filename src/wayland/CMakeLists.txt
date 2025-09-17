@@ -64,6 +64,12 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     request2.cpp
     restoredata.h
     restoredata.cpp
+    protocols/foreigntoplevellist.h
+    protocols/foreigntoplevellist.cpp
+    protocols/imagecopycapture.h
+    protocols/imagecopycapture.cpp
+    protocols/imagecapturesource.h
+    protocols/imagecapturesource.cpp
 )
 
 qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILES
@@ -71,6 +77,9 @@ qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILE
     ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-capture-unstable-v1.xml
     /usr/share/wayland/wayland.xml
     ${WAYLANDPROTOCOlS_PKGDATADIR}/unstable/linux-dmabuf/linux-dmabuf-unstable-v1.xml
+    ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-foreign-toplevel-list/ext-foreign-toplevel-list-v1.xml
+    ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-image-copy-capture/ext-image-copy-capture-v1.xml
+    ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-image-capture-source/ext-image-capture-source-v1.xml
 )
 
 # Patch the generated linux-dmabuf protocol header to include core wayland interface
