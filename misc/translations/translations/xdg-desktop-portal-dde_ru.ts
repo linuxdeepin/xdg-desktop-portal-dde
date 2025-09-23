@@ -9,7 +9,7 @@
     <message>
         <location filename="../../../src/accessdialog.cpp" line="59"/>
         <source>Grant Access</source>
-        <translation>Предоставление доступа</translation>
+        <translation>Предоставить доступ</translation>
     </message>
 </context>
 <context>
