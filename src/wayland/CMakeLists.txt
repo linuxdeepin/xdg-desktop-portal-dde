@@ -70,6 +70,10 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     protocols/imagecopycapture.cpp
     protocols/imagecapturesource.h
     protocols/imagecapturesource.cpp
+    toplevelmodel.h
+    toplevelmodel.cpp
+    amhelper.h
+    amhelper.cpp
 )
 
 qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILES
@@ -113,7 +117,9 @@ qt_add_qml_module(xdg-desktop-portal-dde-wayland
     VERSION 1.0
     QML_FILES
         ScreencastChooserWindow.qml
-        ScreenList.qml
+        OutputListView.qml
+        ToplevelList.qml
+        Background.qml
 )
 
 target_link_libraries(xdg-desktop-portal-dde-wayland

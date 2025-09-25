@@ -7,10 +7,12 @@
 #include <QAbstractListModel>
 #include <QScreen>
 #include <QGuiApplication>
+#include <QtQmlIntegration>
 
 class ScreenListModel : public QAbstractListModel
 {
     Q_OBJECT
+    QML_ELEMENT
 public:
     enum ScreenRoles {
         NameRole = Qt::UserRole + 1,
