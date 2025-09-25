@@ -11,13 +11,10 @@
 #include "restoredata.h"
 #include "screenlistmodel.h"
 
-#include <QDBusMetaType>
-
 ScreencastPortalWayland::ScreencastPortalWayland(PortalWaylandContext *context)
     : AbstractWaylandPortal(context)
 {
     globalIntergration->init();
-    qDBusRegisterMetaType<RestoreData>();
 }
 
 ScreencastPortalWayland::~ScreencastPortalWayland()

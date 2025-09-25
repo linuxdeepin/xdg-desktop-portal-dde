@@ -5,10 +5,12 @@
 #pragma once
 
 #include <QObject>
+#include <QtQmlIntegration>
 
 class PortalCommon : public QObject
 {
     Q_OBJECT
+    QML_ELEMENT
 public:
     enum SourceType {
         Any = 0,

@@ -4,6 +4,8 @@
 
 #include "ddesktopportal.h"
 #include "wayland/portalwaylandcontext.h"
+#include "wayland/toplevelmodel.h"
+#include "wayland/restoredata.h"
 
 #include <QApplication>
 #include <QDBusConnection>
@@ -11,6 +13,7 @@
 #include <QLoggingCategory>
 #include <QTranslator>
 #include <QStandardPaths>
+#include <QDBusMetaType>
 
 Q_LOGGING_CATEGORY(XdgDesktopDDE, "xdg-dde")
 
@@ -21,6 +24,8 @@ inline static bool onWayland()
 
 int main(int argc, char *argv[])
 {
+    qDBusRegisterMetaType<RestoreData>();
+    qDBusRegisterMetaType<QStringMap>();
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
     /* Disable X11 session management
     As XdgDesktopPortal is a QGuiApplication it connects to our X session manager.

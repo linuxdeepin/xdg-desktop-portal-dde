@@ -5,6 +5,7 @@
 #pragma once
 
 #include "portalcommon.h"
+#include "toplevelmodel.h"
 
 #include <QObject>
 #include <QQmlApplicationEngine>
@@ -33,6 +34,7 @@ public:
     static QString applicationName(const QString &appId);
     QRect selectedRegion() const;
     QList<QPointer<QScreen>> selectedOutputs() const;
+    QList<ToplevelInfo *> selectedToplevels() const;
     bool allowRestore() const;
     QWindow *windowHandle() const;
 

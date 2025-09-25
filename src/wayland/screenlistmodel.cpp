@@ -27,12 +27,12 @@ int ScreenListModel::rowCount(const QModelIndex &parent) const
         return 0;
     }
 
-    return m_screens.size();
+    return m_screens.count();
 }
 
 QVariant ScreenListModel::data(const QModelIndex &index, int role) const
 {
-    if (!index.isValid() || index.row() >= m_screens.size()) {
+    if (!index.isValid() || index.row() >= m_screens.count()) {
         return QVariant();
     }
 
@@ -47,12 +47,16 @@ QVariant ScreenListModel::data(const QModelIndex &index, int role) const
 
 bool ScreenListModel::setData(const QModelIndex &index, const QVariant &value, int role)
 {
-    if (!checkIndex(index, CheckIndexOption::IndexIsValid) || role != Qt::CheckStateRole) {
+    if (!checkIndex(index, CheckIndexOption::IndexIsValid)
+        || index.row() >= m_screens.count()
+        || role != NameRole) {
         return false;
     }
 
-    if (index.data(Qt::CheckStateRole) == value) {
-        return true;
+    switch (role) {
+    case NameRole:
+        m_screens[index.row()]->name() = value.toString();
+        return false;
     }
 
     Q_EMIT dataChanged(index, index, {role});

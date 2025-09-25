@@ -4,6 +4,7 @@
 
 #include "screencastchooser.h"
 #include "screenlistmodel.h"
+#include "toplevelmodel.h"
 #include "loggings.h"
 
 #include <QSettings>
@@ -16,9 +17,6 @@ ScreenCastChooser::ScreenCastChooser( const QString &appID, PortalCommon::Source
     , m_engine(new QQmlApplicationEngine(this))
     , m_window(nullptr)
 {
-    qmlRegisterType<PortalCommon>(URI, 0, 1,"PortalCommon");
-    qmlRegisterType<ScreenListModel>(URI, 0, 1,"ScreenListModel");
-
     QObject::connect(m_engine, &QQmlApplicationEngine::objectCreationFailed, this, [this](){
         qCCritical(SCREENCAST, "qml create failed!");
     });
@@ -26,11 +24,13 @@ ScreenCastChooser::ScreenCastChooser( const QString &appID, PortalCommon::Source
     m_engine->load(QUrl("qrc:/screencast/ScreencastChooserWindow.qml"));
     QObject *rootObject =  m_engine->rootObjects().first();
     QQuickWindow* win = qobject_cast<QQuickWindow *>(rootObject);
+
     if (win) {
         connect(win, &QQuickWindow::closing, this, &ScreenCastChooser::handleWindowClosed);
         connect(win, SIGNAL(accept()), this, SLOT(accept()));
         connect(win, SIGNAL(reject()), this, SLOT(reject()));
         m_window = win;
+        m_window->setProperty("clientAppName", QVariant::fromValue(applicationName(appID)));
     }
 }
 
@@ -97,12 +97,30 @@ QRect ScreenCastChooser::selectedRegion() const
 
 QList<QPointer<QScreen>> ScreenCastChooser::selectedOutputs() const
 {
+    if (m_window->property("viewLayoutIndex").toInt() != 0) {
+        return {};
+    }
+
     ScreenListModel *model = dynamic_cast<ScreenListModel *>
             (m_window->property("outputsModel").value<QObject *>());
     if (!model) {
         return {};
     }
     return model->selectedOutputs(m_window->property("outputIndex").toInt());
+}
+
+QList<ToplevelInfo *> ScreenCastChooser::selectedToplevels() const
+{
+    if (m_window->property("viewLayoutIndex").toInt() != 1) {
+        return {};
+    }
+
+    ToplevelListModel *model = dynamic_cast<ToplevelListModel *>
+            (m_window->property("toplevelsModel").value<QObject *>());
+    if (!model) {
+        return {};
+    }
+    return model->selectedToplevels(m_window->property("toplevelIndex").toInt());
 }
 
 bool ScreenCastChooser::allowRestore() const
