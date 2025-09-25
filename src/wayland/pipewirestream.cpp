@@ -498,10 +498,10 @@ void PipeWireStream::onStreamParamChanged(uint32_t id, const spa_pod *param)
 
 void PipeWireStream::onStreamRemoveBuffer(pw_buffer *buffer)
 {
-    PipeWireStream::PipeWireSourceBuffer *PipeWireSourceBuffer =
+    PipeWireStream::PipeWireSourceBuffer *pipeWireSourceBuffer =
             static_cast<PipeWireStream::PipeWireSourceBuffer *>(buffer->user_data);
-    if (PipeWireSourceBuffer) {
-        destroyPipeWireSourceBuffer(PipeWireSourceBuffer);
+    if (pipeWireSourceBuffer) {
+        destroyPipeWireSourceBuffer(pipeWireSourceBuffer);
     }
 
     if (m_currentFrame.pwBuffer == buffer) {
@@ -536,27 +536,27 @@ void PipeWireStream::onStreamAddBuffer(pw_buffer *buffer)
 
     qCDebug(SCREENCAST, "pipewire: selected buffertype %u", t);
 
-    PipeWireStream::PipeWireSourceBuffer *PipeWireSourceBuffer = createPipeWireSourceBuffer(m_bufferType, &m_screencopyFrameInfo[m_bufferType]);
-    if (!PipeWireSourceBuffer) {
+    PipeWireStream::PipeWireSourceBuffer *pipeWireSourceBuffer = createPipeWireSourceBuffer(m_bufferType, &m_screencopyFrameInfo[m_bufferType]);
+    if (!pipeWireSourceBuffer) {
         qCCritical(SCREENCAST, "pipewire: failed to create xdpw buffer");
         m_err = 1;
         return;
     }
-    buffer->user_data = PipeWireSourceBuffer;
+    buffer->user_data = pipeWireSourceBuffer;
 
-    assert(PipeWireSourceBuffer->planeCount >= 0 &&
-           buffer->buffer->n_datas == (uint32_t)PipeWireSourceBuffer->planeCount);
+    assert(pipeWireSourceBuffer->planeCount >= 0 &&
+           buffer->buffer->n_datas == (uint32_t)pipeWireSourceBuffer->planeCount);
     for (uint32_t plane = 0; plane < buffer->buffer->n_datas; plane++) {
         d[plane].type = t;
-        d[plane].maxsize = PipeWireSourceBuffer->size[plane];
+        d[plane].maxsize = pipeWireSourceBuffer->size[plane];
         d[plane].mapoffset = 0;
-        d[plane].chunk->size = PipeWireSourceBuffer->size[plane];
-        d[plane].chunk->stride = PipeWireSourceBuffer->stride[plane];
-        d[plane].chunk->offset = PipeWireSourceBuffer->offset[plane];
+        d[plane].chunk->size = pipeWireSourceBuffer->size[plane];
+        d[plane].chunk->stride = pipeWireSourceBuffer->stride[plane];
+        d[plane].chunk->offset = pipeWireSourceBuffer->offset[plane];
         d[plane].flags = 0;
-        d[plane].fd = PipeWireSourceBuffer->fd[plane];
+        d[plane].fd = pipeWireSourceBuffer->fd[plane];
         d[plane].data = nullptr;
-        if (PipeWireSourceBuffer->bufferType == PortalCommon::DMABUF && d[plane].chunk->size == 0) {
+        if (pipeWireSourceBuffer->bufferType == PortalCommon::DMABUF && d[plane].chunk->size == 0) {
             d[plane].chunk->size = 9;
         }
     }
