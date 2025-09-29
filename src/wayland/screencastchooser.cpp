@@ -6,6 +6,7 @@
 #include "screenlistmodel.h"
 #include "toplevelmodel.h"
 #include "loggings.h"
+#include "amhelper.h"
 
 #include <QSettings>
 #include <QStandardPaths>
@@ -30,7 +31,7 @@ ScreenCastChooser::ScreenCastChooser( const QString &appID, PortalCommon::Source
         connect(win, SIGNAL(accept()), this, SLOT(accept()));
         connect(win, SIGNAL(reject()), this, SLOT(reject()));
         m_window = win;
-        m_window->setProperty("clientAppName", QVariant::fromValue(applicationName(appID)));
+        m_window->setProperty("clientAppName", QVariant::fromValue(AMHelpers::nameFromAM(appID)));
     }
 }
 
@@ -61,32 +62,6 @@ void ScreenCastChooser::handleWindowClosed()
     if (win) {
         win->deleteLater();
     }
-}
-
-QString ScreenCastChooser::applicationName(const QString &appId)
-{
-    QString applicationName;
-    const QString desktopFile = appId + QStringLiteral(".desktop");
-    const QStringList desktopFileLocations = QStandardPaths::locateAll(QStandardPaths::ApplicationsLocation, desktopFile, QStandardPaths::LocateFile);
-    for (const QString &location : desktopFileLocations) {
-        QSettings settings(location, QSettings::IniFormat);
-        settings.beginGroup(QStringLiteral("Desktop Entry"));
-        if (settings.contains(QStringLiteral("X-GNOME-FullName"))) {
-            applicationName = settings.value(QStringLiteral("X-GNOME-FullName")).toString();
-        } else {
-            applicationName = settings.value(QStringLiteral("Name")).toString();
-        }
-
-        if (!applicationName.isEmpty()) {
-            break;
-        }
-    }
-
-    if (applicationName.isEmpty()) {
-        applicationName = appId;
-    }
-
-    return applicationName;
 }
 
 QRect ScreenCastChooser::selectedRegion() const
