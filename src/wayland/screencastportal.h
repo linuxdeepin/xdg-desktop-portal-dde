@@ -11,6 +11,10 @@
 
 #include <QObject>
 #include <QDBusObjectPath>
+#include <QSystemTrayIcon>
+#include <QMenu>
+#include <QAction>
+#include <QString>
 
 Q_GLOBAL_STATIC(TreelandIntergration, globalIntergration)
 
@@ -58,4 +62,8 @@ private:
                                                                               const QList<QPointer<QScreen>> &selectedOutputs,
                                                                               const QRect &selectedRegion,
                                                                               bool allowRestore);
+private:
+    QSystemTrayIcon *m_tray;
+    QMenu m_menu;
+    QHash<ScreenCastSession*, QAction*> m_sessionActions;
 };

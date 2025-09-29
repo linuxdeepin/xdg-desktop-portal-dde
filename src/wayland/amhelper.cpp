@@ -54,4 +54,24 @@ QString getLocaleOrDefaultValue(const QStringMap &value, const QString &targetKe
     return !targetValue.isEmpty() ? targetValue : fallbackValue;
 }
 
+QString nameFromAM(const QString &appID)
+{
+    QString name = appID;
+    QString path = "/org/desktopspec/ApplicationManager1/" + DUtil::escapeToObjectPath(appID);
+    QDBusInterface amIterface(AM_DBUS_SERVICE, path, AM_DBUS_APPLICATION_INTERFACE);
+    if (!amIterface.isValid()) {
+        qCCritical(PORTAL_COMMON) << "invalid interface:" << amIterface.lastError().message();
+        return name;
+    }
+
+    auto nameProperty = amIterface.property("Name");
+    if (!nameProperty.isValid()) {
+        qCCritical(PORTAL_COMMON) << "failed to get Name property:" << amIterface.lastError().message();
+    } else {
+        name = getLocaleOrDefaultValue(qdbus_cast<QStringMap>(nameProperty), locale, DEFAULT_KEY);
+    }
+
+    return name;
+}
+
 }

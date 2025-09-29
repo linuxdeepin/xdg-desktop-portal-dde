@@ -12,4 +12,5 @@ namespace AMHelpers
 {
 QString getLocaleOrDefaultValue(const QStringMap &value, const QString &targetKey, const QString &fallbackKey);
 void updateInfoFromAM(const QString &appID, QString &name, QString &icon);
+QString nameFromAM(const QString &appID);
 }
