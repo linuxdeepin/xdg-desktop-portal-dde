@@ -31,7 +31,6 @@ public:
     ~ScreenCastChooser() override;
     void showWindow();
     void closeWindow();
-    static QString applicationName(const QString &appId);
     QRect selectedRegion() const;
     QList<QPointer<QScreen>> selectedOutputs() const;
     QList<ToplevelInfo *> selectedToplevels() const;
