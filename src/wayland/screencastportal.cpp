@@ -10,10 +10,13 @@
 #include "utils.h"
 #include "restoredata.h"
 #include "screenlistmodel.h"
+#include "amhelper.h"
 
 ScreencastPortalWayland::ScreencastPortalWayland(PortalWaylandContext *context)
     : AbstractWaylandPortal(context)
+    , m_tray(new QSystemTrayIcon(QIcon::fromTheme("portal-screencast"), this))
 {
+    m_tray->setContextMenu(&m_menu);
     globalIntergration->init();
 }
 
@@ -52,13 +55,36 @@ uint ScreencastPortalWayland::CreateSession(const QDBusObjectPath &handle,
         return PortalResponse::OtherError;
     }
 
+    m_tray->setToolTip(tr("Sharing Screen to [%1]").arg(AMHelpers::nameFromAM(app_id)));
+    QAction *action = new QAction(tr("Stop [%1] Sharing").arg(AMHelpers::nameFromAM(app_id)), &m_menu);
+    connect(action, &QAction::triggered, this, [this]{
+        QAction *action = static_cast<QAction *>(sender());
+        ScreenCastSession *session = m_sessionActions.key(action);
+        if (session) {
+            session->close();
+        } else {
+            qCCritical(SCREENCAST) << "Triggered action not found in m_sessionActions; cannot close session.";
+        }
+    });
+    m_menu.addAction(action);
+    m_sessionActions.insert(qobject_cast<ScreenCastSession *>(session), action);
+    m_tray->show();
+
     if (!globalIntergration->isStreamingAvailable()) {
         qCWarning(SCREENCAST) << "wlf-screencopy-unstable-v1 does not seem to be available";
         return PortalResponse::OtherError;
     }
 
-    connect(session, &Session::closed, [session] {
+    connect(session, &Session::closed, [session, this] {
         auto screencastSession = qobject_cast<ScreenCastSession *>(session);
+        QAction *action = m_sessionActions.value(screencastSession);
+        m_menu.removeAction(action);
+        m_sessionActions.remove(screencastSession);
+        delete action;
+        if (m_menu.actions().isEmpty()) {
+            m_tray->hide();
+        }
+
         const auto streams = screencastSession->streams();
         for (const Stream &stream : streams) {
             globalIntergration->stopStreaming(stream.nodeId);

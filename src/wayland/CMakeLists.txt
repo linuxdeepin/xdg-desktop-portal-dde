@@ -141,3 +141,4 @@ PUBLIC
 )
 
 install(TARGETS xdg-desktop-portal-dde-wayland DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES icons/portal-screencast.dci DESTINATION share/dsg/icons/)
