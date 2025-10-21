@@ -42,6 +42,7 @@ ListView {
                     Layout.fillWidth: true
                 }
             }
+            onClicked: view.currentIndex = index
         }
 
         Background {
