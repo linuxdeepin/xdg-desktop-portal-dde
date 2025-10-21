@@ -141,6 +141,8 @@ PUBLIC
     PkgConfig::GBM
     PkgConfig::PIPEWIRE
     Wayland::Client
+PRIVATE
+    dde_utils
 )
 
 install(TARGETS xdg-desktop-portal-dde-wayland DESTINATION ${CMAKE_INSTALL_LIBDIR})
