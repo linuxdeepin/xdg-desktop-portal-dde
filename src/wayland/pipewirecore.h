@@ -12,6 +12,7 @@
 class QSocketNotifier;
 class ScreenCastContext;
 class PipeWireStream;
+class AbstractPipeWireStream;
 
 class PipeWireCore : public QObject
 {
@@ -35,6 +36,7 @@ Q_SIGNALS:
 private:
     friend class ScreenCastContext;
     friend class PipeWireStream;
+    friend class AbstractPipeWireStream;
 
     struct pw_core *m_pwCore = nullptr;
     struct pw_context *m_pwContext = nullptr;

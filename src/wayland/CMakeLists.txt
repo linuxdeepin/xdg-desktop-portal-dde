@@ -77,6 +77,12 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     toplevelmodel.cpp
     amhelper.h
     amhelper.cpp
+    abstractpipewirestream.h
+    abstractpipewirestream.cpp
+    outputpipewirestream.h
+    outputpipewirestream.cpp
+    toplevelpipewirestream.h
+    toplevelpipewirestream.cpp
 )
 
 qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILES

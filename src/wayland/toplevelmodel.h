@@ -21,6 +21,7 @@ struct ToplevelInfo {
 
     QString iconPath;
     QString appName;
+    QString identifier;
 };
 
 class ToplevelListModel : public QAbstractListModel
@@ -53,6 +54,7 @@ private Q_SLOTS:
     void handleToplevelDone();
     void handleToplevelTitleChanged(const QString &title);
     void handleToplevelAppIdChanged(const QString &appId);
+    void handleIdentifierChanged(const QString &identifier);
 
 private:
     QList<ToplevelInfo*> m_toplevels;
