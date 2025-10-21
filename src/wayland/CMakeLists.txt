@@ -42,8 +42,6 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     screencastportal.cpp
     screencastcontext.h
     screencastcontext.cpp
-    pipewirestream.h
-    pipewirestream.cpp
     portalcommon.h
     remotedesktopsession.h
     remotedesktopsession.cpp
