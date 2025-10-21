@@ -5,12 +5,13 @@
 #pragma once
 
 #include "portalcommon.h"
-#include "pipewirestream.h"
+#include "abstractpipewirestream.h"
+#include "toplevelmodel.h"
 
 #include <QDBusArgument>
 
 struct Stream {
-    PipeWireStream *stream = nullptr;
+    AbstractPipeWireStream *stream = nullptr;
     uint nodeId;
     QVariantMap map;
     bool isValid() const { return stream; }
@@ -24,6 +25,8 @@ QDebug operator<<(QDebug dbg, const Stream &c);
 const QDBusArgument &operator<<(QDBusArgument &arg, const Stream &stream);
 const QDBusArgument &operator>>(const QDBusArgument &arg, Stream &stream);
 
+class ScreencastPortalWayland;
+
 class TreelandIntergration : public QObject
 {
     Q_OBJECT
@@ -36,12 +39,14 @@ public:
     bool isStreamingAvailable() const;
 
     Stream startStreamingOutput(QScreen *screen, PortalCommon::CursorModes mode);
-    Stream startStreamingRegion(const QRect &region, PortalCommon::CursorModes mode);
+    // Stream startStreamingRegion(const QRect &region, PortalCommon::CursorModes mode);
+    Stream startStreamingToplevel(ToplevelInfo *toplevel, PortalCommon::CursorModes mode);
 
-    Stream startStreaming(PipeWireStream *stream, const QVariantMap &streamOptions);
+    Stream startStreaming(AbstractPipeWireStream *stream, const QVariantMap &streamOptions);
     void stopStreaming(uint nodeId);
 
 private:
+    friend class ScreencastPortalWayland;
     QList<Stream> m_streams;
     QPointer<ScreenCastContext> m_context;
 };

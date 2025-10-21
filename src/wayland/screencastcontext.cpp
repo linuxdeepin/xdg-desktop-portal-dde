@@ -27,7 +27,6 @@ static struct spa_hook core_listener;
 ScreenCastContext::ScreenCastContext(QObject *parent)
     : QObject(parent)
     , m_pwCore(new PipeWireCore(this))
-    , m_screenCopyManager(new ScreenCopyManager)
     , m_shm(new WLShm)
     , m_linuxDmaBuf(new LinuxDmaBufV1)
     , m_linuxDmaBufFeedback(nullptr)
@@ -44,11 +43,6 @@ ScreenCastContext::ScreenCastContext(QObject *parent)
     , m_imageCopyCaptureManagerActive(false)
     , m_foreignToplevelListActive(false)
 {
-    m_screenCopyManagerActive = m_screenCopyManager->isActive();
-    connect(m_screenCopyManager, &ScreenCopyManager::activeChanged, this, [this]{
-        m_screenCopyManagerActive = m_screenCopyManager->isActive();
-    });
-
     m_linuxDmaBufInterfaceActive = m_linuxDmaBuf->isActive();
     if (m_linuxDmaBufInterfaceActive) {
         initConnection();
@@ -103,9 +97,6 @@ ScreenCastContext::~ScreenCastContext()
             xdpw_destroy_timer(timer);
         }
     }
-
-    m_screenCopyManager->destroy();
-    delete m_screenCopyManager;
 
     delete m_shm;
 
@@ -219,11 +210,6 @@ bool ScreenCastContext::linuxDmaBufInterfaceActive() const
 bool ScreenCastContext::shmInterfaceActive() const
 {
     return m_shmInterfaceActive;
-}
-
-bool ScreenCastContext::screenCopyManagerActive() const
-{
-    return m_screenCopyManagerActive;
 }
 
 bool ScreenCastContext::outputImageCaptureSourceManagerActive() const
