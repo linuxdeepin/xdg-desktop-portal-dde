@@ -121,6 +121,8 @@ void ToplevelListModel::handleToplevelAdded(ForeignToplevelHandle *toplevel)
             this, &ToplevelListModel::handleToplevelTitleChanged);
     connect(info->handle, &ForeignToplevelHandle::appIdChanged,
             this, &ToplevelListModel::handleToplevelAppIdChanged);
+    connect(info->handle, &ForeignToplevelHandle::identifierChanged,
+            this, &ToplevelListModel::handleIdentifierChanged);
     int count = m_toplevels.count();
     beginInsertRows(QModelIndex(), count, count);
     m_toplevels << info;
@@ -190,6 +192,17 @@ void ToplevelListModel::handleToplevelAppIdChanged(const QString &appId)
     foreach (ToplevelInfo *info, m_toplevels) {
         if (info->handle == handle) {
             info->appID = appId;
+            return;
+        }
+    }
+}
+
+void ToplevelListModel::handleIdentifierChanged(const QString &identifier)
+{
+    auto handle = static_cast<ForeignToplevelHandle *>(sender());
+    foreach (ToplevelInfo *info, m_toplevels) {
+        if (info->handle == handle) {
+            info->identifier = identifier;
             return;
         }
     }

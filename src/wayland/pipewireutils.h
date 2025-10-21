@@ -18,4 +18,6 @@ uint32_t drmFormatfromWLShmFormat(enum wl_shm_format format);
 int32_t wlOutputTransformFromQscreen(const QScreen *screen);
 enum spa_video_format pipewireFormatFromDRMFormat(uint32_t format);
 enum wl_shm_format wlShmFormatFromDRMFormat(uint32_t format);
+int pipewireBPPFromDrmFourcc(uint32_t format);
+uint32_t drmFourccFromPipewireFormat(enum spa_video_format format);
 }

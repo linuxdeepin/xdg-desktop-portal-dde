@@ -122,4 +122,77 @@ wl_shm_format wlShmFormatFromDRMFormat(uint32_t format)
     }
 }
 
+int pipewireBPPFromDrmFourcc(uint32_t format)
+{
+    switch (format) {
+    case DRM_FORMAT_ARGB8888:
+    case DRM_FORMAT_XRGB8888:
+    case DRM_FORMAT_RGBA8888:
+    case DRM_FORMAT_RGBX8888:
+    case DRM_FORMAT_ABGR8888:
+    case DRM_FORMAT_XBGR8888:
+    case DRM_FORMAT_BGRA8888:
+    case DRM_FORMAT_BGRX8888:
+    case DRM_FORMAT_XRGB2101010:
+    case DRM_FORMAT_XBGR2101010:
+    case DRM_FORMAT_RGBX1010102:
+    case DRM_FORMAT_BGRX1010102:
+    case DRM_FORMAT_ARGB2101010:
+    case DRM_FORMAT_ABGR2101010:
+    case DRM_FORMAT_RGBA1010102:
+    case DRM_FORMAT_BGRA1010102:
+        return 4;
+    case DRM_FORMAT_BGR888:
+    case DRM_FORMAT_RGB888:
+        return 3;
+    default:
+        return -1;
+    }
+}
+
+uint32_t drmFourccFromPipewireFormat(spa_video_format format)
+{
+    switch (format) {
+    case SPA_VIDEO_FORMAT_BGRA:
+        return DRM_FORMAT_ARGB8888;
+    case SPA_VIDEO_FORMAT_BGRx:
+        return DRM_FORMAT_XRGB8888;
+    case SPA_VIDEO_FORMAT_ABGR:
+        return DRM_FORMAT_RGBA8888;
+    case SPA_VIDEO_FORMAT_xBGR:
+        return DRM_FORMAT_RGBX8888;
+    case SPA_VIDEO_FORMAT_RGBA:
+        return DRM_FORMAT_ABGR8888;
+    case SPA_VIDEO_FORMAT_RGBx:
+        return DRM_FORMAT_XBGR8888;
+    case SPA_VIDEO_FORMAT_ARGB:
+        return DRM_FORMAT_BGRA8888;
+    case SPA_VIDEO_FORMAT_xRGB:
+        return DRM_FORMAT_BGRX8888;
+    case SPA_VIDEO_FORMAT_NV12:
+        return DRM_FORMAT_NV12;
+    case SPA_VIDEO_FORMAT_xRGB_210LE:
+        return DRM_FORMAT_XRGB2101010;
+    case SPA_VIDEO_FORMAT_xBGR_210LE:
+        return DRM_FORMAT_XBGR2101010;
+    case SPA_VIDEO_FORMAT_RGBx_102LE:
+        return DRM_FORMAT_RGBX1010102;
+    case SPA_VIDEO_FORMAT_BGRx_102LE:
+        return DRM_FORMAT_BGRX1010102;
+    case SPA_VIDEO_FORMAT_ARGB_210LE:
+        return DRM_FORMAT_ARGB2101010;
+    case SPA_VIDEO_FORMAT_ABGR_210LE:
+        return DRM_FORMAT_ABGR2101010;
+    case SPA_VIDEO_FORMAT_RGBA_102LE:
+        return DRM_FORMAT_RGBA1010102;
+    case SPA_VIDEO_FORMAT_BGRA_102LE:
+        return DRM_FORMAT_BGRA1010102;
+    case SPA_VIDEO_FORMAT_RGB:
+        return DRM_FORMAT_BGR888;
+    case SPA_VIDEO_FORMAT_BGR:
+        return DRM_FORMAT_RGB888;
+    default:
+        return DRM_FORMAT_INVALID;
+    }
+}
 }

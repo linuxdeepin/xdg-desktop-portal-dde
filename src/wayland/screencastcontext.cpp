@@ -31,10 +31,18 @@ ScreenCastContext::ScreenCastContext(QObject *parent)
     , m_shm(new WLShm)
     , m_linuxDmaBuf(new LinuxDmaBufV1)
     , m_linuxDmaBufFeedback(nullptr)
+    , m_outputImageCaptureSourceManager(new OutputImageCaptureSourceManager)
+    , m_foreignToplevelImageCaptureSourceManager(new ForeignToplevelImageCaptureSourceManager)
+    , m_imageCopyCaptureManager(new ImageCopyCaptureManager)
+    , m_foreignToplevelList(new ForeignToplevelList)
     , m_gbmDevice(nullptr)
     , m_forceModLinear(false)
     , m_shmInterfaceActive(false)
     , m_linuxDmaBufInterfaceActive(false)
+    , m_outputImageCaptureSourceManagerActive(false)
+    , m_foreignToplevelImageCaptureSourceManagerActive(false)
+    , m_imageCopyCaptureManagerActive(false)
+    , m_foreignToplevelListActive(false)
 {
     m_screenCopyManagerActive = m_screenCopyManager->isActive();
     connect(m_screenCopyManager, &ScreenCopyManager::activeChanged, this, [this]{
@@ -59,6 +67,30 @@ ScreenCastContext::ScreenCastContext(QObject *parent)
         m_shmInterfaceActive = m_shm->isActive();
     });
 
+    m_outputImageCaptureSourceManagerActive = m_outputImageCaptureSourceManager->isActive();
+    connect(m_outputImageCaptureSourceManager, &OutputImageCaptureSourceManager::activeChanged, this, [this]{
+        m_outputImageCaptureSourceManagerActive = m_outputImageCaptureSourceManager->isActive();
+    });
+
+    m_foreignToplevelImageCaptureSourceManagerActive = m_foreignToplevelImageCaptureSourceManager->isActive();
+    connect(m_foreignToplevelImageCaptureSourceManager, &ForeignToplevelImageCaptureSourceManager::activeChanged, this, [this]{
+        m_foreignToplevelImageCaptureSourceManagerActive = m_foreignToplevelImageCaptureSourceManager->isActive();
+    });
+
+    m_imageCopyCaptureManagerActive = m_imageCopyCaptureManager->isActive();
+    connect(m_imageCopyCaptureManager, &ImageCopyCaptureManager::activeChanged, this, [this]{
+        m_imageCopyCaptureManagerActive = m_imageCopyCaptureManager->isActive();
+    });
+
+    m_foreignToplevelListActive = m_foreignToplevelList->isActive();
+    connect(m_foreignToplevelList, &ForeignToplevelList::activeChanged, this, [this]{
+        m_foreignToplevelListActive = m_foreignToplevelList->isActive();
+        connect(m_foreignToplevelList, &ForeignToplevelList::toplevelAdded,
+                this, &ScreenCastContext::handleToplevelAdded);
+        connect(m_foreignToplevelList, &ForeignToplevelList::finished,
+                this, &ScreenCastContext::handleFinished);
+
+    });
     m_state.timer_poll_fd = m_pwCore->m_notifier->socket();
     wl_list_init(&m_state.timers);
 }
@@ -84,6 +116,15 @@ ScreenCastContext::~ScreenCastContext()
 
     m_linuxDmaBuf->destroy();
     m_linuxDmaBuf = nullptr;
+
+    m_outputImageCaptureSourceManager->destroy();
+    delete m_outputImageCaptureSourceManager;
+
+    m_foreignToplevelImageCaptureSourceManager->destroy();
+    delete m_foreignToplevelImageCaptureSourceManager;
+
+    m_imageCopyCaptureManager->destroy();
+    delete m_imageCopyCaptureManager;
 
     gbm_device_destroy(m_gbmDevice);
 }
@@ -185,6 +226,26 @@ bool ScreenCastContext::screenCopyManagerActive() const
     return m_screenCopyManagerActive;
 }
 
+bool ScreenCastContext::outputImageCaptureSourceManagerActive() const
+{
+    return m_outputImageCaptureSourceManagerActive;
+}
+
+bool ScreenCastContext::foreignToplevelImageCaptureSourceManagerActive() const
+{
+    return m_foreignToplevelImageCaptureSourceManagerActive;
+}
+
+bool ScreenCastContext::imageCopyCaptureManagerActive() const
+{
+    return m_imageCopyCaptureManagerActive;
+}
+
+QList<ToplevelInfo *> ScreenCastContext::toplevels() const
+{
+    return m_toplevels;
+}
+
 void ScreenCastContext::handleLinuxDmaBufModifierChanged(uint32_t format,
                                                          uint32_t modifierHigh,
                                                          uint32_t modifierLow)
@@ -282,6 +343,61 @@ void ScreenCastContext::handlevDmaBufFeedbackTrancheFormatsReceived(const wl_arr
             continue;
         }
         addFormatModifierPair(fm_entries[idx[i]].format, fm_entries[idx[i]].modifier);
+    }
+}
+
+void ScreenCastContext::handleToplevelAdded(ForeignToplevelHandle *toplevel)
+{
+    auto info = new ToplevelInfo(toplevel);
+    connect(info->handle, &ForeignToplevelHandle::closed,
+            this, &ScreenCastContext::handleToplevelClosed);
+    connect(info->handle, &ForeignToplevelHandle::appIdChanged,
+            this, &ScreenCastContext::handleToplevelAppIdChanged);
+    connect(info->handle, &ForeignToplevelHandle::identifierChanged,
+            this, &ScreenCastContext::handleIdentifierChanged);
+    m_toplevels << info;
+}
+
+void ScreenCastContext::handleFinished()
+{
+    foreach (ToplevelInfo *info, m_toplevels) {
+        delete info;
+    }
+    m_toplevels.clear();
+}
+
+void ScreenCastContext::handleToplevelClosed()
+{
+    auto handle = static_cast<ForeignToplevelHandle *>(sender());
+    for (int i = 0; i < m_toplevels.count(); i++) {
+        auto toplevel = m_toplevels[i];
+        if (toplevel->handle == handle) {
+            m_toplevels.removeOne(toplevel);
+            delete toplevel;
+            return;
+        }
+    }
+}
+
+void ScreenCastContext::handleToplevelAppIdChanged(const QString &appId)
+{
+    auto handle = static_cast<ForeignToplevelHandle *>(sender());
+    foreach (ToplevelInfo *info, m_toplevels) {
+        if (info->handle == handle) {
+            info->appID = appId;
+            return;
+        }
+    }
+}
+
+void ScreenCastContext::handleIdentifierChanged(const QString &identifier)
+{
+    auto handle = static_cast<ForeignToplevelHandle *>(sender());
+    foreach (ToplevelInfo *info, m_toplevels) {
+        if (info->handle == handle) {
+            info->identifier = identifier;
+            return;
+        }
     }
 }
 
