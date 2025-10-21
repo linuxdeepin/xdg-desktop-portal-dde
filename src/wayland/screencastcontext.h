@@ -29,17 +29,6 @@ class AbstractPipeWireStream;
 class OutputPipeWireStream;
 class ToplevelPipeWireStream;
 
-struct DMABufFeedbackData {
-    void *formatTableData;
-    uint32_t formatTableSize;
-    bool deviceUsed;
-};
-
-struct DRMFormatModifierPair {
-    uint32_t fourcc;
-    uint64_t modifier;
-};
-
 class ScreenCastContext : public QObject
 {
     Q_OBJECT
@@ -52,10 +41,6 @@ public:
                                  int width,
                                  int height,
                                  int stride);
-    bool queryDMABufModifiers(uint32_t drmFormat,
-                                    uint32_t numModifiers,
-                                    uint64_t *modifiers,
-                                    uint32_t *maxModifiers);
     bool linuxDmaBufInterfaceActive() const;
     bool shmInterfaceActive() const;
     bool outputImageCaptureSourceManagerActive() const;
@@ -63,25 +48,13 @@ public:
     bool imageCopyCaptureManagerActive() const;
     QList<ToplevelInfo*> toplevels() const;
     static gbm_device *createGBMDeviceFromDRMDevice(drmDevice *device);
-private Q_SLOTS:
-    void handleLinuxDmaBufModifierChanged(uint32_t format,
-                                          uint32_t modifierHigh,
-                                          uint32_t modifierLow);
-    void handlevDmaBufFeedbackDone();
-    void handlevDmaBufFeedbackFormatTableReceived(int fd, uint size);
-    void handlevDmaBufFeedbackMainDeviceReceived(const wl_array *device);
-    void handlevDmaBufFeedbackTrancheDone();
-    void handlevDmaBufFeedbackTrancheTargetDeviceReceived(const wl_array *device);
-    void handlevDmaBufFeedbackTrancheFormatsReceived(const wl_array *indices);
 
+private Q_SLOTS:
     void handleToplevelAdded(ForeignToplevelHandle *toplevel);
     void handleFinished();
     void handleToplevelClosed();
     void handleToplevelAppIdChanged(const QString &appId);
     void handleIdentifierChanged(const QString &identifier);
-private:
-    void initConnection();
-    void addFormatModifierPair(uint32_t format, uint64_t modifier);
 
 private:
     friend class PipeWireStream;
@@ -92,16 +65,11 @@ private:
     PipeWireCore *m_pwCore;
     WLShm *m_shm;
     LinuxDmaBufV1 *m_linuxDmaBuf;
-    LinuxDmaBufFeedbackV1 *m_linuxDmaBufFeedback;
     OutputImageCaptureSourceManager *m_outputImageCaptureSourceManager;
     ForeignToplevelImageCaptureSourceManager *m_foreignToplevelImageCaptureSourceManager;
     ImageCopyCaptureManager *m_imageCopyCaptureManager;
-    gbm_device *m_gbmDevice;
     ForeignToplevelList *m_foreignToplevelList;
-    DMABufFeedbackData m_feedbackData;
-    QList<DRMFormatModifierPair> m_formatModifierPairs;
     QList<ToplevelInfo*> m_toplevels;
-    bool m_forceModLinear;
     bool m_linuxDmaBufInterfaceActive;
     bool m_shmInterfaceActive;
     bool m_outputImageCaptureSourceManagerActive;

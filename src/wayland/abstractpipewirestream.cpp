@@ -308,7 +308,7 @@ void AbstractPipeWireStream::onStreamParamChanged(uint32_t id, const spa_pod *pa
     spa_format_video_raw_parse(param, &m_pipewireVideoInfo);
 
     m_framerate = (uint32_t)(m_pipewireVideoInfo.max_framerate.num / m_pipewireVideoInfo.max_framerate.denom);
-    struct gbm_device *gbm = m_currentConstraints.gbm ? m_currentConstraints.gbm : m_context->m_gbmDevice;
+    struct gbm_device *gbm = m_currentConstraints.gbm;
     const struct spa_pod_prop *prop_modifier = spa_pod_find_prop(param, nullptr, SPA_FORMAT_VIDEO_modifier);
     if (prop_modifier) {
         m_bufferType = PortalCommon::DMABUF;
@@ -339,7 +339,7 @@ void AbstractPipeWireStream::onStreamParamChanged(uint32_t id, const spa_pod *pa
             for (uint32_t i = 0; i < n_modifiers; i++) {
                 switch (modifiers[i]) {
                 case DRM_FORMAT_MOD_INVALID:
-                    flags = m_context->m_forceModLinear ?
+                    flags = m_forceModLinear ?
                             GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR : GBM_BO_USE_RENDERING;
                     break;
                 case DRM_FORMAT_MOD_LINEAR:
@@ -872,10 +872,10 @@ void AbstractPipeWireStream::handleCaptureSessionDmabufDeviceChanged(wl_array *d
 
     drmDevice *drmDev;
     if (drmGetDeviceFromDevId(device, /* flags */ 0, &drmDev) != 0) {
+        m_forceModLinear = true;
         return;
     }
 
-    // TODO: aviod create GBM Device, maybe reuse m_gbmDevice
     m_pendingConstraints.gbm = ScreenCastContext::createGBMDeviceFromDRMDevice(drmDev);
     m_pendingConstraints.dirty = true;
     qCDebug(SCREENCAST, "ext: dmabuf_device handler");
@@ -1083,7 +1083,7 @@ void AbstractPipeWireStream::buildModifierList(uint32_t drm_format, uint64_t **m
 void AbstractPipeWireStream::queryDmabufModifiers(uint32_t drm_format, uint64_t *modifiers, uint32_t num_modifiers)
 {
     uint32_t idx = 0;
-    struct gbm_device *gbm = m_currentConstraints.gbm ? m_currentConstraints.gbm : m_context->m_gbmDevice;
+    struct gbm_device *gbm = m_currentConstraints.gbm;
     foreach (struct DRMFormatModifierPair *fm_pair, std::as_const(m_currentConstraints.dmabuf_format_modifier_pairs)) {
         if (fm_pair->fourcc == drm_format &&
             (fm_pair->modifier == DRM_FORMAT_MOD_INVALID ||
@@ -1100,7 +1100,7 @@ uint32_t AbstractPipeWireStream::countDmabufModifiers(uint32_t drm_format)
     struct PipewireBufferConstraints *constraints = &m_currentConstraints;
 
     uint32_t modifiers = 0;
-    struct gbm_device *gbm = m_currentConstraints.gbm ? m_currentConstraints.gbm : m_context->m_gbmDevice;
+    struct gbm_device *gbm = m_currentConstraints.gbm;
     foreach (struct DRMFormatModifierPair *fm_pair, std::as_const(constraints->dmabuf_format_modifier_pairs)) {
         if (fm_pair->fourcc == drm_format &&
             (fm_pair->modifier == DRM_FORMAT_MOD_INVALID ||
@@ -1125,7 +1125,7 @@ PipeWireSourceBuffer *AbstractPipeWireStream::createPipeWireSourceBuffer(PortalC
 
     struct xdpw_shm_format *fmt = nullptr;
     bool found = false;
-    struct gbm_device *gbm = m_currentConstraints.gbm ? m_currentConstraints.gbm : m_context->m_gbmDevice;
+    struct gbm_device *gbm = m_currentConstraints.gbm;
 
     switch (bufferType) {
     case PortalCommon::SHM:
@@ -1180,7 +1180,7 @@ PipeWireSourceBuffer *AbstractPipeWireStream::createPipeWireSourceBuffer(PortalC
             bo = gbm_bo_create_with_modifiers2(gbm, buffer->width, buffer->height,
                                                format, modifiers, 1, flags);
         } else {
-            if (m_context->m_forceModLinear) {
+            if (m_forceModLinear) {
                 flags |= GBM_BO_USE_LINEAR;
             }
             bo = gbm_bo_create(gbm, buffer->width, buffer->height, format, flags);

@@ -65,6 +65,11 @@ public:
         uint32_t stride;
     };
 
+    struct DRMFormatModifierPair {
+        uint32_t fourcc;
+        uint64_t modifier;
+    };
+
     struct PipewireBufferConstraints {
         QList<struct DRMFormatModifierPair *> dmabuf_format_modifier_pairs;
         QList<struct xdpw_shm_format *> shm_formats;
@@ -167,6 +172,7 @@ protected:
     int m_err = 0;
     bool m_quit = false;
     bool m_isStreaming = false;
+    bool m_forceModLinear = false;
 
     PortalCommon::BufferType m_bufferType;
     FrameState m_frameState = XDPW_FRAME_STATE_NONE;

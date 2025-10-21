@@ -11,31 +11,15 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
-#include <QSocketNotifier>
-
-static void on_core_error(void *data, uint32_t id, int seq, int res, const char* message) {
-    qCFatal(SCREENCAST, "pipewire: fatal error event from core");
-}
-
-static const struct pw_core_events core_events = {
-    .version = PW_VERSION_CORE_EVENTS,
-    .error = on_core_error,
-};
-
-static struct spa_hook core_listener;
-
 ScreenCastContext::ScreenCastContext(QObject *parent)
     : QObject(parent)
     , m_pwCore(new PipeWireCore(this))
     , m_shm(new WLShm)
     , m_linuxDmaBuf(new LinuxDmaBufV1)
-    , m_linuxDmaBufFeedback(nullptr)
     , m_outputImageCaptureSourceManager(new OutputImageCaptureSourceManager)
     , m_foreignToplevelImageCaptureSourceManager(new ForeignToplevelImageCaptureSourceManager)
     , m_imageCopyCaptureManager(new ImageCopyCaptureManager)
     , m_foreignToplevelList(new ForeignToplevelList)
-    , m_gbmDevice(nullptr)
-    , m_forceModLinear(false)
     , m_shmInterfaceActive(false)
     , m_linuxDmaBufInterfaceActive(false)
     , m_outputImageCaptureSourceManagerActive(false)
@@ -44,16 +28,8 @@ ScreenCastContext::ScreenCastContext(QObject *parent)
     , m_foreignToplevelListActive(false)
 {
     m_linuxDmaBufInterfaceActive = m_linuxDmaBuf->isActive();
-    if (m_linuxDmaBufInterfaceActive) {
-        initConnection();
-    }
-
     connect(m_linuxDmaBuf, &LinuxDmaBufV1::activeChanged, this, [this]{
         m_linuxDmaBufInterfaceActive = m_linuxDmaBuf->isActive();
-        if (m_linuxDmaBufInterfaceActive) {
-            initConnection();
-        }
-
     });
 
     m_shmInterfaceActive = m_shm->isActive();
@@ -100,11 +76,6 @@ ScreenCastContext::~ScreenCastContext()
 
     delete m_shm;
 
-    if (m_linuxDmaBufFeedback) {
-        m_linuxDmaBufFeedback->destroy();
-        m_linuxDmaBufFeedback = nullptr;
-    }
-
     m_linuxDmaBuf->destroy();
     m_linuxDmaBuf = nullptr;
 
@@ -116,8 +87,6 @@ ScreenCastContext::~ScreenCastContext()
 
     m_imageCopyCaptureManager->destroy();
     delete m_imageCopyCaptureManager;
-
-    gbm_device_destroy(m_gbmDevice);
 }
 
 wl_buffer *ScreenCastContext::createWLSHMBuffer(int fd, wl_shm_format fmt, int width, int height, int stride)
@@ -166,42 +135,6 @@ gbm_device *ScreenCastContext::createGBMDeviceFromDRMDevice(drmDevice *device)
     return gbm_create_device(fd);
 }
 
-
-bool ScreenCastContext::queryDMABufModifiers(uint32_t drmFormat,
-                                             uint32_t numModifiers,
-                                             uint64_t *modifiers,
-                                             uint32_t *maxModifiers)
-{
-    if (m_formatModifierPairs.isEmpty()) {
-        return false;
-    }
-
-    if (numModifiers == 0) {
-        *maxModifiers = 0;
-        foreach(auto fm_pair , m_formatModifierPairs) {
-                if (fm_pair.fourcc == drmFormat &&
-                    (fm_pair.modifier == DRM_FORMAT_MOD_INVALID ||
-                     gbm_device_get_format_modifier_plane_count(m_gbmDevice, fm_pair.fourcc, fm_pair.modifier) > 0))
-                    *maxModifiers += 1;
-        }
-        return true;
-    }
-
-    uint32_t i = 0;
-    foreach(auto fm_pair , m_formatModifierPairs) {
-        if (i == numModifiers)
-            break;
-        if (fm_pair.fourcc == drmFormat &&
-            (fm_pair.modifier == DRM_FORMAT_MOD_INVALID ||
-             gbm_device_get_format_modifier_plane_count(m_gbmDevice, fm_pair.fourcc, fm_pair.modifier) > 0)) {
-            modifiers[i] = fm_pair.modifier;
-            i++;
-        }
-    }
-    *maxModifiers = numModifiers;
-    return true;
-}
-
 bool ScreenCastContext::linuxDmaBufInterfaceActive() const
 {
     return m_linuxDmaBufInterfaceActive;
@@ -230,106 +163,6 @@ bool ScreenCastContext::imageCopyCaptureManagerActive() const
 QList<ToplevelInfo *> ScreenCastContext::toplevels() const
 {
     return m_toplevels;
-}
-
-void ScreenCastContext::handleLinuxDmaBufModifierChanged(uint32_t format,
-                                                         uint32_t modifierHigh,
-                                                         uint32_t modifierLow)
-{
-    uint64_t modifier = (((uint64_t)modifierHigh) << 32) | modifierLow;
-    qCDebug(SCREENCAST) << "handleLinuxDmaBufModifierChanged" << format << modifier;
-    addFormatModifierPair(format, modifier);
-}
-
-void ScreenCastContext::handlevDmaBufFeedbackDone()
-{
-    if (m_feedbackData.formatTableData) {
-        munmap(m_feedbackData.formatTableData, m_feedbackData.formatTableSize);
-    }
-    m_feedbackData.formatTableData = nullptr;
-    m_feedbackData.formatTableSize = 0;
-}
-
-void ScreenCastContext::handlevDmaBufFeedbackFormatTableReceived(int fd, uint size)
-{
-    m_formatModifierPairs.clear();
-
-    m_feedbackData.formatTableData = mmap(nullptr , size, PROT_READ, MAP_PRIVATE, fd, 0);
-    if (m_feedbackData.formatTableData == MAP_FAILED) {
-        qCCritical(SCREENCAST) << "mmap failed in handlevDmaBufFeedbackFormatTableReceived";
-        m_feedbackData.formatTableData = nullptr;
-        m_feedbackData.formatTableSize = 0;
-        return;
-    }
-    m_feedbackData.formatTableSize = size;
-}
-
-void ScreenCastContext::handlevDmaBufFeedbackMainDeviceReceived(const wl_array *deviceArr)
-{
-    dev_t device;
-    assert(deviceArr->size == sizeof(device));
-    memcpy(&device, deviceArr->data, sizeof(device));
-
-    drmDevice *drmDev = nullptr;
-    if (drmGetDeviceFromDevId(device, 0, &drmDev) != 0) {
-        qCCritical(SCREENCAST) << "unable to open main device" << drmDev->nodes;
-        m_forceModLinear = true;
-        return;
-    }
-    m_gbmDevice = createGBMDeviceFromDRMDevice(drmDev);
-    drmFreeDevice(&drmDev);
-}
-
-void ScreenCastContext::handlevDmaBufFeedbackTrancheDone()
-{
-    m_feedbackData.deviceUsed = false;
-}
-
-void ScreenCastContext::handlevDmaBufFeedbackTrancheTargetDeviceReceived(const wl_array *deviceArr)
-{
-    dev_t device;
-    assert(deviceArr->size == sizeof(device));
-    memcpy(&device, deviceArr->data, sizeof(device));
-
-    drmDevice *drmDev = nullptr;
-    if (drmGetDeviceFromDevId(device, 0, &drmDev) != 0) {
-        return;
-    }
-
-    if (m_gbmDevice) {
-        drmDevice *drmDevRenderer = nullptr;
-        drmGetDevice2(gbm_device_get_fd(m_gbmDevice), 0, &drmDevRenderer);
-        m_feedbackData.deviceUsed = drmDevicesEqual(drmDevRenderer, drmDev);
-    } else {
-        m_gbmDevice = createGBMDeviceFromDRMDevice(drmDev);
-        m_feedbackData.deviceUsed = m_gbmDevice;
-    }
-    drmFreeDevice(&drmDev);
-}
-
-void ScreenCastContext::handlevDmaBufFeedbackTrancheFormatsReceived(const wl_array *indices)
-{
-    if (!m_feedbackData.deviceUsed || !m_feedbackData.formatTableData) {
-        return;
-    }
-    struct fm_entry {
-        uint32_t format;
-        uint32_t padding;
-        uint64_t modifier;
-    };
-    static_assert(sizeof(fm_entry) == 16, "fm_entry size must be 16 bytes");
-
-    uint32_t n_modifiers = m_feedbackData.formatTableSize / sizeof(fm_entry);
-    fm_entry *fm_entries = static_cast<fm_entry *>(m_feedbackData.formatTableData);
-
-    const uint16_t *idx = static_cast<const uint16_t *>(indices->data);
-    size_t count = indices->size / sizeof(uint16_t);
-    for (size_t i = 0; i < count; ++i) {
-        if (idx[i] >= n_modifiers) {
-            continue;
-        }
-        addFormatModifierPair(fm_entries[idx[i]].format, fm_entries[idx[i]].modifier);
-    }
 }
 
 void ScreenCastContext::handleToplevelAdded(ForeignToplevelHandle *toplevel)
@@ -385,39 +218,4 @@ void ScreenCastContext::handleIdentifierChanged(const QString &identifier)
             return;
         }
     }
-}
-
-void ScreenCastContext::initConnection()
-{
-    qCDebug(SCREENCAST) << "linux dmabuf version" << m_linuxDmaBuf->version();
-    if (m_linuxDmaBuf->version() >= 4) {
-        m_linuxDmaBufFeedback = new LinuxDmaBufFeedbackV1(m_linuxDmaBuf->get_default_feedback(), m_linuxDmaBuf);
-        connect(m_linuxDmaBufFeedback, &LinuxDmaBufFeedbackV1::feedbackDone,
-                this, &ScreenCastContext::handlevDmaBufFeedbackDone);
-        connect(m_linuxDmaBufFeedback, &LinuxDmaBufFeedbackV1::formatTableReceived,
-                this, &ScreenCastContext::handlevDmaBufFeedbackFormatTableReceived);
-        connect(m_linuxDmaBufFeedback, &LinuxDmaBufFeedbackV1::mainDeviceReceived,
-                this, &ScreenCastContext::handlevDmaBufFeedbackMainDeviceReceived);
-        connect(m_linuxDmaBufFeedback, &LinuxDmaBufFeedbackV1::trancheDone,
-                this, &ScreenCastContext::handlevDmaBufFeedbackTrancheDone);
-        connect(m_linuxDmaBufFeedback, &LinuxDmaBufFeedbackV1::trancheTargetDeviceReceived,
-                this, &ScreenCastContext::handlevDmaBufFeedbackTrancheTargetDeviceReceived);
-        connect(m_linuxDmaBufFeedback, &LinuxDmaBufFeedbackV1::trancheFormatsReceived,
-                this, &ScreenCastContext::handlevDmaBufFeedbackTrancheFormatsReceived);
-    } else {
-        connect(m_linuxDmaBuf, &LinuxDmaBufV1::modifierChanged,
-                this, &ScreenCastContext::handleLinuxDmaBufModifierChanged);
-    }
-}
-
-void ScreenCastContext::addFormatModifierPair(uint32_t format, uint64_t modifier)
-{
-    foreach (auto modifierPair, m_formatModifierPairs) {
-        if (modifierPair.fourcc == format && modifierPair.modifier == modifier) {
-            qCWarning(SCREENCAST, "skipping duplicated format %u (%lu)", modifierPair.fourcc, modifierPair.modifier);
-            return;
-        }
-    }
-
-    m_formatModifierPairs.append(DRMFormatModifierPair{format, modifier});
 }
