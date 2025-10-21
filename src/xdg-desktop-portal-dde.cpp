@@ -24,6 +24,9 @@ inline static bool onWayland()
 
 int main(int argc, char *argv[])
 {
+    // qputenv("PIPEWIRE_DEBUG", "4");
+    // qputenv("QT_LOGGING_RULES", "dde.portal.ScreenCast*.debug=true");
+    // qputenv("WAYLAND_DEBUG", "1");
     qDBusRegisterMetaType<RestoreData>();
     qDBusRegisterMetaType<QStringMap>();
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)

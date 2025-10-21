@@ -58,7 +58,6 @@ public:
                                     uint32_t *maxModifiers);
     bool linuxDmaBufInterfaceActive() const;
     bool shmInterfaceActive() const;
-    bool screenCopyManagerActive() const;
     bool outputImageCaptureSourceManagerActive() const;
     bool foreignToplevelImageCaptureSourceManagerActive() const;
     bool imageCopyCaptureManagerActive() const;
@@ -91,7 +90,6 @@ private:
     friend class ToplevelPipeWireStream;
 
     PipeWireCore *m_pwCore;
-    ScreenCopyManager *m_screenCopyManager;
     WLShm *m_shm;
     LinuxDmaBufV1 *m_linuxDmaBuf;
     LinuxDmaBufFeedbackV1 *m_linuxDmaBufFeedback;
@@ -106,7 +104,6 @@ private:
     bool m_forceModLinear;
     bool m_linuxDmaBufInterfaceActive;
     bool m_shmInterfaceActive;
-    bool m_screenCopyManagerActive;
     bool m_outputImageCaptureSourceManagerActive;
     bool m_foreignToplevelImageCaptureSourceManagerActive;
     bool m_imageCopyCaptureManagerActive;

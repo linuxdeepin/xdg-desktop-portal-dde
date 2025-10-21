@@ -4,6 +4,8 @@
 
 #include "treelandintegration.h"
 #include "loggings.h"
+#include "outputpipewirestream.h"
+#include "toplevelpipewirestream.h"
 
 #include <QRect>
 #include <QTimer>
@@ -76,17 +78,16 @@ bool TreelandIntergration::isStreamingEnbled() const
 bool TreelandIntergration::isStreamingAvailable() const
 {
     return m_context->linuxDmaBufInterfaceActive() &&
-            m_context->screenCopyManagerActive();
+            m_context->outputImageCaptureSourceManagerActive() &&
+            m_context->foreignToplevelImageCaptureSourceManagerActive() &&
+            m_context->imageCopyCaptureManagerActive();
 }
 
 Stream TreelandIntergration::startStreamingOutput(QScreen *screen, PortalCommon::CursorModes mode)
 {
-    auto stream = new PipeWireStream(m_context, screen, mode, this);
-    if (!stream) {
-        qCWarning(SCREENCAST) << "Cannot stream, output not found" << screen->name();
-        // TODO：system notify
-        return Stream{};
-    }
+    qCWarning(SCREENCAST) << "start streaming output:" << screen->name();
+    auto stream = new OutputPipeWireStream(m_context, mode, screen, this);
+
     return startStreaming(stream,
                           {
                                   {QLatin1String("size"), screen->size()},
@@ -94,28 +95,39 @@ Stream TreelandIntergration::startStreamingOutput(QScreen *screen, PortalCommon:
                           });
 }
 
-Stream TreelandIntergration::startStreamingRegion(const QRect &region, PortalCommon::CursorModes mode)
+// Stream TreelandIntergration::startStreamingRegion(const QRect &region, PortalCommon::CursorModes mode)
+// {
+//     auto stream = new PipeWireStream(m_context, region, mode, this);
+//     if (stream) {
+//         qCWarning(SCREENCAST) << "Cannot stream for region" << region;
+//         return Stream{};
+//     }
+//     return startStreaming(stream,
+//                           {
+//                                   {QLatin1String("size"), region.size()},
+//                                   {QLatin1String("source_type"), static_cast<uint>(PortalCommon::Monitor)}
+//                           });
+// }
+
+Stream TreelandIntergration::startStreamingToplevel(ToplevelInfo *toplevel, PortalCommon::CursorModes mode)
 {
-    auto stream = new PipeWireStream(m_context, region, mode, this);
-    if (stream) {
-        qCWarning(SCREENCAST) << "Cannot stream for region" << region;
-        return Stream{};
-    }
+    qCDebug(SCREENCAST) << "start streaming toplevel:" << toplevel->appID;
+    auto stream = new ToplevelPipeWireStream(m_context, mode, toplevel, this);
+
     return startStreaming(stream,
                           {
-                                  {QLatin1String("size"), region.size()},
-                                  {QLatin1String("source_type"), static_cast<uint>(PortalCommon::Monitor)}
+                                  {QLatin1String("source_type"), static_cast<uint>(PortalCommon::Window)}
                           });
 }
 
-Stream TreelandIntergration::startStreaming(PipeWireStream *stream, const QVariantMap &streamOptions)
+Stream TreelandIntergration::startStreaming(AbstractPipeWireStream *stream, const QVariantMap &streamOptions)
 {
     stream->startScreencast();
     qCWarning(SCREENCAST) << "startStreaming";
     QEventLoop loop;
     Stream ret;
 
-    connect(stream, &PipeWireStream::failed, &loop, [&](const QString &error) {
+    connect(stream, &AbstractPipeWireStream::failed, &loop, [&](const QString &error) {
         qCWarning(SCREENCAST) << "failed to start streaming" << stream << error;
         loop.quit();
     });
@@ -125,19 +137,19 @@ Stream TreelandIntergration::startStreaming(PipeWireStream *stream, const QVaria
         ret.map = streamOptions;
         m_streams.append(ret);
         loop.quit();
-        connect(stream, &PipeWireStream::closed, this, [this](uint32_t nodeid) {
+        connect(stream, &AbstractPipeWireStream::closed, this, [this](uint32_t nodeid) {
             stopStreaming(nodeid);
         });
         Q_ASSERT(ret.isValid());
         loop.quit();
     } else {
-        connect(stream, &PipeWireStream::ready, &loop, [&](uint32_t nodeid) {
+        connect(stream, &AbstractPipeWireStream::ready, &loop, [&](uint32_t nodeid) {
             ret.stream = stream;
             ret.nodeId = nodeid;
             ret.map = streamOptions;
             m_streams.append(ret);
 
-            connect(stream, &PipeWireStream::closed, this, [this, nodeid] {
+            connect(stream, &AbstractPipeWireStream::closed, this, [this, nodeid] {
                 stopStreaming(nodeid);
             });
             Q_ASSERT(ret.isValid());
