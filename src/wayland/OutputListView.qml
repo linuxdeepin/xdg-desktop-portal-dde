@@ -21,6 +21,7 @@ ListView {
             Layout.fillHeight: true
             text: screenName
             ButtonGroup.group: doubleExclusiveGroup
+            onClicked: view.currentIndex = index
         }
 
         Background {
