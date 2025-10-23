@@ -23,6 +23,8 @@ ToplevelPipeWireStream::ToplevelPipeWireStream(QPointer<ScreenCastContext> conte
             m_framerate = refreshRate;
         }
     }
+
+    connect(m_toplevel->handle, &ForeignToplevelHandle::closed, this, &ToplevelPipeWireStream::handleToplevelClosed);
 }
 
 int ToplevelPipeWireStream::startScreencast()
@@ -63,4 +65,9 @@ void ToplevelPipeWireStream::startframeCapture()
     }
 
     frameCapture();
+}
+
+void ToplevelPipeWireStream::handleToplevelClosed()
+{
+    Q_EMIT closed(nodeId());
 }
