@@ -21,6 +21,9 @@ public:
     int startScreencast() override;
     void startframeCapture() override;
 
+private Q_SLOTS:
+    void handleScreenRemoved(QScreen *screen);
+
 private:
     QScreen *m_output = nullptr;
 };

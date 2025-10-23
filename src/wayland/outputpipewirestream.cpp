@@ -18,6 +18,7 @@ OutputPipeWireStream::OutputPipeWireStream(QPointer<ScreenCastContext> context,
     , m_output(output)
 {
     m_framerate = output->refreshRate();
+    connect(qApp, &QGuiApplication::screenRemoved, this, &OutputPipeWireStream::handleScreenRemoved);
 }
 
 int OutputPipeWireStream::startScreencast()
@@ -67,4 +68,11 @@ void OutputPipeWireStream::startframeCapture()
     }
 
     frameCapture();
+}
+
+void OutputPipeWireStream::handleScreenRemoved(QScreen *screen)
+{
+    if (screen == m_output) {
+        Q_EMIT closed(nodeId());
+    }
 }
