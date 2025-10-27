@@ -722,7 +722,9 @@ void AbstractPipeWireStream::pipewireBufferConstraintsFinish(PipewireBufferConst
     constraints->dmabuf_format_modifier_pairs.clear();
     constraints->shm_formats.clear();
     if (constraints->gbm) {
+        int fd = gbm_device_get_fd(constraints->gbm);
         gbm_device_destroy(constraints->gbm);
+        close(fd);
     }
     constraints->gbm = nullptr;
     constraints->dirty = false;
