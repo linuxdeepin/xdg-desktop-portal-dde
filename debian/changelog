@@ -1,3 +1,25 @@
+xdg-desktop-portal-dde (1.1.0) unstable; urgency=medium
+
+  * fix: close GBM device file descriptor after destroying gbm_device
+  * fix: Treeland may crash during recording
+  * feat: remove unused code
+  * feat: drop screencopy pipewirestream
+  * feat: switch screencast portal to ext-image-capture
+  * feat: support the new ext-image-capture protocol
+  * fix: currentIndex not changing
+  * i18n: Translate xdg-desktop-portal-dde_en.ts in ru
+  * fix: compatibility with Qt 6.10
+  * feat: get app name from am service
+  * feat: add Tray Control pipewire streaming
+  * feat: remove useless function
+  * fix: var start with uppercase letters
+  * feat: implement a new UI design
+  * feat: add Qt-style implementations for new Wayland protocols
+  * fix: memory access exceptions
+  * fix: delete useless conditional judgments
+
+ -- rewine <luhongxu@uniontech.com>  Thu, 30 Oct 2025 13:48:20 +0800
+
 xdg-desktop-portal-dde (1.0.15) unstable; urgency=medium
 
   * fix: memory leaks
