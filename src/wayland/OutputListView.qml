@@ -9,28 +9,30 @@ import QtQuick.Controls
 ListView {
     id: view
 
-    readonly property real itemHeight: 35
+    property real itemHeight
 
     highlightFollowsCurrentItem: true
     clip: true
     ButtonGroup { id: doubleExclusiveGroup }
-    delegate: ColumnLayout {
+    delegate: CheckDelegate {
         width: view.width
-        CheckDelegate {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            text: screenName
-            ButtonGroup.group: doubleExclusiveGroup
-            onClicked: view.currentIndex = index
-        }
+        height: view.itemHeight
+        text: screenName
+        ButtonGroup.group: doubleExclusiveGroup
+        onClicked: view.currentIndex = index
 
         Background {
             readonly property real sideMargin: 10
 
-            Layout.fillWidth: true
-            Layout.leftMargin: sideMargin
-            Layout.rightMargin: sideMargin
-            Layout.preferredHeight: 1
+            anchors {
+                bottom: parent.bottom
+                left: parent.left
+                right: parent.right
+                leftMargin: sideMargin
+                rightMargin: sideMargin
+            }
+            width: parent.width
+            height: 1
         }
     }
 

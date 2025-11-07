@@ -72,6 +72,7 @@ D.DialogWindow {
             readonly property real viewMargin: 62
             readonly property real viewHeight: 372
             readonly property real radius: 6
+            readonly property real delegateHeight: 36
             readonly property color darkColor: "black"
             readonly property color lightColor: "white"
 
@@ -88,6 +89,7 @@ D.DialogWindow {
                     anchors.fill: parent
                     rightMargin: root.scrollBarMargin
                     model: ScreenListModel {}
+                    itemHeight: viewLayout.delegateHeight
                 }
             }
 
@@ -101,6 +103,7 @@ D.DialogWindow {
                     anchors.fill: parent
                     rightMargin: root.scrollBarMargin
                     model: ToplevelListModel {}
+                    itemHeight: viewLayout.delegateHeight
                 }
             }
         }

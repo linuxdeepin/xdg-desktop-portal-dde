@@ -11,47 +11,48 @@ import org.deepin.dtk 1.0 as D
 ListView {
     id: view
 
-    readonly property real itemHeight: 40
-    readonly property real iconSize: 64
+    property real itemHeight
+    readonly property real iconSize: 16
 
     clip: true
-    spacing: 10
     highlightFollowsCurrentItem: true
     ButtonGroup { id: doubleExclusiveGroup }
-    delegate: ColumnLayout {
+    delegate: D.CheckDelegate {
         width: view.width
-        D.CheckDelegate {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            ButtonGroup.group: doubleExclusiveGroup
-            content: RowLayout {
-                spacing: 10
-                D.DciIcon {
-                    width: view.itemHeight
-                    height: view.itemHeight
-                    name: appIcon
-                    sourceSize: Qt.size(width, height)
-                }
-                Label {
-                    text: name
-                }
-                Label {
-                    text: title
-                    opacity: 0.7
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                }
+        height: view.itemHeight
+        ButtonGroup.group: doubleExclusiveGroup
+        content: RowLayout {
+            spacing: 10
+            D.DciIcon {
+                width: view.iconSize
+                height: view.iconSize
+                name: appIcon
+                sourceSize: Qt.size(width, height)
             }
-            onClicked: view.currentIndex = index
+            Label {
+                text: name
+            }
+            Label {
+                text: title
+                opacity: 0.7
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
         }
+        onClicked: view.currentIndex = index
 
         Background {
             readonly property real sideMargin: 10
 
-            Layout.fillWidth: true
-            Layout.leftMargin: sideMargin
-            Layout.rightMargin: sideMargin
-            Layout.preferredHeight: 1
+            anchors {
+                bottom: parent.bottom
+                left: parent.left
+                right: parent.right
+                leftMargin: sideMargin
+                rightMargin: sideMargin
+            }
+            width: parent.width
+            height: 1
         }
     }
 
