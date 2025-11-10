@@ -6,7 +6,6 @@
 
 #include "protocols/linuxdmabufer.h"
 #include "protocols/screencopy.h"
-#include "pipewiretimer.h"
 #include "protocols/imagecapturesource.h"
 #include "protocols/imagecopycapture.h"
 #include "toplevelmodel.h"
@@ -76,5 +75,4 @@ private:
     bool m_foreignToplevelImageCaptureSourceManagerActive;
     bool m_imageCopyCaptureManagerActive;
     bool m_foreignToplevelListActive;
-    struct xdpw_state m_state;
 };

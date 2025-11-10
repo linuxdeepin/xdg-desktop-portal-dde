@@ -18,6 +18,7 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QTimer>
 
 #define XDPW_PWR_BUFFERS 2
 #define XDPW_PWR_BUFFERS_MIN 2
@@ -130,6 +131,9 @@ public Q_SLOTS:
     void handleFrameReady();
     void handleFrameFailed(uint32_t reason);
 
+private Q_SLOTS:
+    void handleTimeOut();
+
 protected:
     void updateStreamParam();
     void createStream();
@@ -177,4 +181,5 @@ protected:
     PortalCommon::BufferType m_bufferType;
     FrameState m_frameState = XDPW_FRAME_STATE_NONE;
     PortalCommon::CursorModes m_mode;
+    QTimer *m_timer = nullptr;
 };

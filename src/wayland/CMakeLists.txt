@@ -35,8 +35,6 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     screencastsession.cpp
     fpslimit.h
     fpslimit.c
-    pipewiretimer.h
-    pipewiretimer.c
     pipewireutils.h
     pipewireutils.cpp
     pipewirecore.h

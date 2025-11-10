@@ -61,19 +61,10 @@ ScreenCastContext::ScreenCastContext(QObject *parent)
                 this, &ScreenCastContext::handleFinished);
 
     });
-    m_state.timer_poll_fd = m_pwCore->m_notifier->socket();
-    wl_list_init(&m_state.timers);
 }
 
 ScreenCastContext::~ScreenCastContext()
 {
-    struct xdpw_timer *timer, *ttmp;
-    wl_list_for_each_safe(timer, ttmp, &m_state.timers, link) {
-        if (timer->user_data == this) {
-            xdpw_destroy_timer(timer);
-        }
-    }
-
     delete m_shm;
 
     m_linuxDmaBuf->destroy();
