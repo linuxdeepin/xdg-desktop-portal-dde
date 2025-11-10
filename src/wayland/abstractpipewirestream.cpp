@@ -6,7 +6,6 @@
 #include "loggings.h"
 #include "protocols/common.h"
 #include "pipewirecore.h"
-#include "pipewiretimer.h"
 #include "pipewireutils.h"
 
 #include <pipewire/pipewire.h>
@@ -232,23 +231,22 @@ static struct spa_pod *buildBuffer(struct spa_pod_builder *b, uint32_t blocks, u
     return static_cast<struct spa_pod *>(spa_pod_builder_pop(b, &f[0]));
 }
 
-static void frameCaptureCallback(void *data) {
-    AbstractPipeWireStream *stream = static_cast<AbstractPipeWireStream *>(data);
-    stream->startframeCapture();
-}
-
 AbstractPipeWireStream::AbstractPipeWireStream(QPointer<ScreenCastContext> context,
                                                PortalCommon::CursorModes mode,
                                                QObject *parent)
     : QObject(parent)
     , m_context(context)
     , m_mode(mode)
+    , m_timer(new QTimer(this))
 {
+    m_timer->setSingleShot(true);
+    connect(m_timer, &QTimer::timeout, this, &AbstractPipeWireStream::handleTimeOut);
 }
 
 AbstractPipeWireStream::~AbstractPipeWireStream()
 {
     qCDebug(SCREENCAST) << "~PipeWireStream";
+    m_timer->stop();
     destroyImageCaptureFrame();
     if (m_session) {
         m_session->destroy();
@@ -527,8 +525,7 @@ void AbstractPipeWireStream::onStreamProcess()
         uint64_t delay_ns = fps_limit_measure_end(&fps_limit, m_framerate);
         if (delay_ns > 0) {
             qCDebug(SCREENCAST) << "seq:" << m_seq << "delay_ns" << delay_ns << "framerate" << m_framerate;
-            xdpw_add_timer(&m_context->m_state, delay_ns,
-                           (xdpw_event_loop_timer_func_t) frameCaptureCallback, this);
+            m_timer->start(delay_ns / 1000000);
             return;
         }
     }
@@ -997,6 +994,11 @@ void AbstractPipeWireStream::handleFrameFailed(uint32_t reason)
     default:
         qCCritical(SCREENCAST, "ext: frame capture failed: undefined failed reason");
     }
+}
+
+void AbstractPipeWireStream::handleTimeOut()
+{
+    startframeCapture();
 }
 
 void AbstractPipeWireStream::updateStreamParam()
