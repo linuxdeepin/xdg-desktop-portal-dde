@@ -90,6 +90,7 @@ D.DialogWindow {
                     rightMargin: root.scrollBarMargin
                     model: ScreenListModel {}
                     itemHeight: viewLayout.delegateHeight
+                    currentIndex: -1
                 }
             }
 
@@ -104,6 +105,7 @@ D.DialogWindow {
                     rightMargin: root.scrollBarMargin
                     model: ToplevelListModel {}
                     itemHeight: viewLayout.delegateHeight
+                    currentIndex: -1
                 }
             }
         }
@@ -130,8 +132,11 @@ D.DialogWindow {
                     onClicked: root.accept();
                 }
                 D.RecommandButton {
+                    id: rejectBtn
+
                     text: qsTr("Reject")
                     onClicked: root.reject()
+                    enabled: false
                 }
             }
 
@@ -139,5 +144,14 @@ D.DialogWindow {
                 Layout.fillWidth: true
             }
         }
+    }
+
+    onOutputIndexChanged: updateRejectBtnEnabled()
+    onToplevelIndexChanged: updateRejectBtnEnabled()
+    onViewLayoutIndexChanged: updateRejectBtnEnabled()
+
+    function updateRejectBtnEnabled() {
+        rejectBtn.enabled = (root.viewLayoutIndex === 0 && root.outputIndex >= 0) ||
+                (root.viewLayoutIndex === 1 && root.toplevelIndex >= 0)
     }
 }
