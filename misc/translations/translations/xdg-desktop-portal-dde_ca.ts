@@ -1,6 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS>
-<TS version="2.1" language="ca">
+<?xml version="1.0" ?><!DOCTYPE TS><TS version="2.1" language="ca">
 <context>
     <name>AccessDialog</name>
     <message>
@@ -32,37 +30,37 @@
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="42"/>
         <source>Application [%1] requests to share you screen content</source>
-        <translation type="unfinished"></translation>
+        <translation>L&apos;aplicació [%1] sol·licita compartir el contingut de la pantalla.</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="48"/>
         <source>Please select the screen or window you wish to share</source>
-        <translation type="unfinished"></translation>
+        <translation>Seleccioneu la pantalla o la finestra que voleu compartir.</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="56"/>
         <source>Screen</source>
-        <translation type="unfinished"></translation>
+        <translation>Pantalla</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="62"/>
         <source>Window</source>
-        <translation type="unfinished"></translation>
+        <translation>Finestra</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="123"/>
         <source>Allow restoring on future sessions</source>
-        <translation type="unfinished"></translation>
+        <translation>Permet-ne la restauració en sessions futures.</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="131"/>
         <source>Accept</source>
-        <translation type="unfinished"></translation>
+        <translation>Accepta-ho</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="137"/>
         <source>Reject</source>
-        <translation type="unfinished"></translation>
+        <translation>Rebutja-ho</translation>
     </message>
 </context>
 <context>
@@ -70,12 +68,12 @@
     <message>
         <location filename="../../../src/wayland/screencastportal.cpp" line="63"/>
         <source>Sharing Screen to [%1]</source>
-        <translation type="unfinished"></translation>
+        <translation>Es comparteix la pantalla a [%1]</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/screencastportal.cpp" line="64"/>
         <source>Stop [%1] Sharing</source>
-        <translation type="unfinished"></translation>
+        <translation>Atura la compartició de [%1]</translation>
     </message>
 </context>
 </TS>
