@@ -1,6 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS>
-<TS version="2.1" language="zh_CN">
+<?xml version="1.0" ?><!DOCTYPE TS><TS version="2.1" language="zh_CN">
 <context>
     <name>AccessDialog</name>
     <message>
@@ -32,37 +30,37 @@
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="42"/>
         <source>Application [%1] requests to share you screen content</source>
-        <translation type="unfinished"></translation>
+        <translation>应用程序[%1]请求共享您的屏幕内容</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="48"/>
         <source>Please select the screen or window you wish to share</source>
-        <translation type="unfinished"></translation>
+        <translation>请选择您要共享的屏幕或窗口</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="56"/>
         <source>Screen</source>
-        <translation type="unfinished"></translation>
+        <translation>屏幕</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="62"/>
         <source>Window</source>
-        <translation type="unfinished"></translation>
+        <translation>窗口</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="123"/>
         <source>Allow restoring on future sessions</source>
-        <translation type="unfinished"></translation>
+        <translation>允许在未来会话中恢复</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="131"/>
         <source>Accept</source>
-        <translation type="unfinished"></translation>
+        <translation>允许</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/ScreencastChooserWindow.qml" line="137"/>
         <source>Reject</source>
-        <translation type="unfinished"></translation>
+        <translation>拒绝</translation>
     </message>
 </context>
 <context>
@@ -70,12 +68,12 @@
     <message>
         <location filename="../../../src/wayland/screencastportal.cpp" line="63"/>
         <source>Sharing Screen to [%1]</source>
-        <translation type="unfinished"></translation>
+        <translation>正在共享屏幕至[%1]</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/screencastportal.cpp" line="64"/>
         <source>Stop [%1] Sharing</source>
-        <translation type="unfinished"></translation>
+        <translation>停止[%1]共享</translation>
     </message>
 </context>
 </TS>
