@@ -15,7 +15,6 @@ class AccountPortal;
 class GlobalShortcutPortal;
 class LockdownPortal;
 class SecretPortal;
-class WallPaperPortal;
 class NotificationPortal;
 class FileChooserPortal;
 class AppChooserPortal;
@@ -40,7 +39,6 @@ private:
     GlobalShortcutPortal *m_shortcut = nullptr;
     LockdownPortal *m_lockdown = nullptr;
     SecretPortal *m_secret = nullptr;
-    WallPaperPortal *const m_wallpaper;
     NotificationPortal *const m_notification;
     AccessPortal *const m_access;
 };

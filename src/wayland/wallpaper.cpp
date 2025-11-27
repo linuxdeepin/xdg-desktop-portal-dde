@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "wallpaper.h"
-#include "personalization_manager_client.h"
+#include "protocols/personalizationmanager.h"
 
 #include <QFile>
 #include <QLoggingCategory>
