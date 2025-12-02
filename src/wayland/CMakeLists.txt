@@ -16,6 +16,7 @@ find_package(Libdrm REQUIRED)
 find_package(Wayland REQUIRED COMPONENTS Client)
 pkg_check_modules(GBM IMPORTED_TARGET gbm REQUIRED)
 pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3 REQUIRED)
+pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
 
 add_library(xdg-desktop-portal-dde-wayland SHARED
     loggings.h
@@ -83,6 +84,10 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     protocols/personalizationmanager.cpp
     wallpaper.h
     wallpaper.cpp
+    mpvvideoitem.cpp
+    mpvvideoitem.h
+    mpvvideocontroller.cpp
+    mpvvideocontroller.h
 )
 
 qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILES
@@ -148,6 +153,7 @@ PUBLIC
     PkgConfig::GBM
     PkgConfig::PIPEWIRE
     Wayland::Client
+    PkgConfig::MPV
 )
 
 install(TARGETS xdg-desktop-portal-dde-wayland DESTINATION ${CMAKE_INSTALL_LIBDIR})
