@@ -16,6 +16,7 @@ find_package(Libdrm REQUIRED)
 find_package(Wayland REQUIRED COMPONENTS Client)
 pkg_check_modules(GBM IMPORTED_TARGET gbm REQUIRED)
 pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3 REQUIRED)
+pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
 
 add_library(xdg-desktop-portal-dde-wayland SHARED
     loggings.h
@@ -79,11 +80,20 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     outputpipewirestream.cpp
     toplevelpipewirestream.h
     toplevelpipewirestream.cpp
+    protocols/personalizationmanager.h
+    protocols/personalizationmanager.cpp
+    wallpaper.h
+    wallpaper.cpp
+    mpvvideoitem.cpp
+    mpvvideoitem.h
+    mpvvideocontroller.cpp
+    mpvvideocontroller.h
 )
 
 qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILES
     ${WlrProtocols_PKGDATADIR}/unstable/wlr-screencopy-unstable-v1.xml
     ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-capture-unstable-v1.xml
+    ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-personalization-manager-v1.xml
     /usr/share/wayland/wayland.xml
     ${WAYLANDPROTOCOlS_PKGDATADIR}/unstable/linux-dmabuf/linux-dmabuf-unstable-v1.xml
     ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-foreign-toplevel-list/ext-foreign-toplevel-list-v1.xml
@@ -143,6 +153,7 @@ PUBLIC
     PkgConfig::GBM
     PkgConfig::PIPEWIRE
     Wayland::Client
+    PkgConfig::MPV
 )
 
 install(TARGETS xdg-desktop-portal-dde-wayland DESTINATION ${CMAKE_INSTALL_LIBDIR})
