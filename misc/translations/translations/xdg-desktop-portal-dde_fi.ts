@@ -68,12 +68,12 @@
     <message>
         <location filename="../../../src/wayland/screencastportal.cpp" line="63"/>
         <source>Sharing Screen to [%1]</source>
-        <translation type="unfinished"/>
+        <translation>Näyttö jaetaan [%1]:lle</translation>
     </message>
     <message>
         <location filename="../../../src/wayland/screencastportal.cpp" line="64"/>
         <source>Stop [%1] Sharing</source>
-        <translation type="unfinished"/>
+        <translation>Lopeta [%1] jakaminen</translation>
     </message>
 </context>
 </TS>
