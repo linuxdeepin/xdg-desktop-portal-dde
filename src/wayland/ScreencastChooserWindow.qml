@@ -128,15 +128,16 @@ D.DialogWindow {
                 Layout.alignment: Qt.AlignHCenter
                 spacing: root.itemMargin
                 Button {
+                    id: acceptBtn
+
                     text: qsTr("Accept")
+                    enabled: (root.viewLayoutIndex === 0 && root.outputIndex >= 0) ||
+                             (root.viewLayoutIndex === 1 && root.toplevelIndex >= 0)
                     onClicked: root.accept();
                 }
                 D.RecommandButton {
-                    id: rejectBtn
-
                     text: qsTr("Reject")
                     onClicked: root.reject()
-                    enabled: false
                 }
             }
 
@@ -144,14 +145,5 @@ D.DialogWindow {
                 Layout.fillWidth: true
             }
         }
-    }
-
-    onOutputIndexChanged: updateRejectBtnEnabled()
-    onToplevelIndexChanged: updateRejectBtnEnabled()
-    onViewLayoutIndexChanged: updateRejectBtnEnabled()
-
-    function updateRejectBtnEnabled() {
-        rejectBtn.enabled = (root.viewLayoutIndex === 0 && root.outputIndex >= 0) ||
-                (root.viewLayoutIndex === 1 && root.toplevelIndex >= 0)
     }
 }
