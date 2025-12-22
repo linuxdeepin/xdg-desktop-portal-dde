@@ -73,6 +73,9 @@ set(SRC
     accessdialog.cpp
 )
 
+add_library(dde_utils STATIC utils.cpp utils.h)
+target_link_libraries(dde_utils PUBLIC Qt::Core Qt::Widgets)
+
 add_executable(${PROJECT_NAME}
     ${SRC})
 
