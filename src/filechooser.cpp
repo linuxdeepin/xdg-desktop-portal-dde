@@ -147,6 +147,11 @@ uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
     DECLEAR_PARA_WITH_FALLBACK(multiple, toBool, false);
     // Whether to select for folders instead of files. Default is to select files.
     DECLEAR_PARA_WITH_FALLBACK(directory, toBool, false);
+    // Suggested folder to save the files in. The byte array is expected to be null-terminated.
+    DECLEAR_PARA(current_folder, toByteArray);
+    while (current_folder.endsWith('\0')) {
+        current_folder.chop(1);
+    }
     // The label for the accept button. Mnemonic underlines are allowed.
     const QString &acceptText = parseAcceptLabel(options);
 
@@ -170,6 +175,7 @@ uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
         dirDialog.setFileMode(QFileDialog::Directory);
         dirDialog.setOptions(QFileDialog::ShowDirsOnly | QFileDialog::HideNameFilterDetails);
         dirDialog.setSupportedSchemes(QStringList{QStringLiteral("file")});
+        dirDialog.setDirectory(QString::fromLocal8Bit(current_folder));
         if (!acceptText.isEmpty()) {
             dirDialog.setLabelText(QFileDialog::Accept, acceptText);
         }
@@ -213,6 +219,7 @@ uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
     fileDialog.setModal(modal);
     fileDialog.setFileMode(multiple ? QFileDialog::FileMode::ExistingFiles : QFileDialog::FileMode::ExistingFile);
     fileDialog.setOptions(QFileDialog::HideNameFilterDetails);
+    fileDialog.setDirectory(QString::fromLocal8Bit(current_folder));
     if (!acceptText.isEmpty()) {
         fileDialog.setLabelText(QFileDialog::Accept, acceptText);
     }
