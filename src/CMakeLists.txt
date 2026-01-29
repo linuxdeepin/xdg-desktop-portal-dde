@@ -4,7 +4,8 @@ find_package(
     Concurrent
     DBus
     Widgets
-    WaylandClient)
+    WaylandClient
+    LinguistTools)
 find_package(Qt6WaylandScannerTools REQUIRED)
 find_package(Dtk6 REQUIRED COMPONENTS Core Widget)
 find_package(TreelandProtocols REQUIRED)
@@ -93,5 +94,14 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     )
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
+
+# Translation configuration
+file(GLOB TS_FILES "${CMAKE_SOURCE_DIR}/misc/translations/translations/*.ts")
+qt_add_translations(${PROJECT_NAME}
+    TS_FILES ${TS_FILES}
+    QM_FILES_OUTPUT_VARIABLE QM_FILES
+    LUPDATE_OPTIONS -no-ui-lines -locations none
+)
+install(FILES ${QM_FILES} DESTINATION share/${PROJECT_NAME}/translations)
 
 add_subdirectory(wayland)

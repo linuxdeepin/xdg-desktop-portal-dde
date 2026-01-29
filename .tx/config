@@ -1,0 +1,8 @@
+[main]
+host = https://www.transifex.com
+
+[o:linuxdeepin:p:deepin-desktop-environment:r:6578ea58a3adcecb31966471370fa0ba]
+file_filter = misc/translations/translations/xdg-desktop-portal-dde_<lang>.ts
+source_file = misc/translations/translations/xdg-desktop-portal-dde_en.ts
+source_lang = en_US
+type = QT
