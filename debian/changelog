@@ -1,3 +1,14 @@
+xdg-desktop-portal-dde (1.1.2) unstable; urgency=medium
+
+  * feat: add countdown to access dialog and fix translation generation
+  * feat: add current folder support to file chooser
+  * i18n: Translate xdg-desktop-portal-dde_en.ts in uk
+  * i18n: Updates for project Deepin Desktop Environment (#100)
+  * fix: button object error
+  * i18n: Updates for project Deepin Desktop Environment (#98)
+
+ -- zhangkun <zhangkun2@uniontech.com>  Thu, 29 Jan 2026 20:38:08 +0800
+
 xdg-desktop-portal-dde (1.1.1) unstable; urgency=medium
 
   * i18n: Updates for project Deepin Desktop Environment (#95)
