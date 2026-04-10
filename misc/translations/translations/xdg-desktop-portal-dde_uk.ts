@@ -12,7 +12,7 @@
     <message>
         <source>%1 (%2s)</source>
         <comment>e.g. Deny Access (15s)</comment>
-        <translation type="unfinished"/>
+        <translation>%1 (%2с)</translation>
     </message>
 </context>
 <context>
