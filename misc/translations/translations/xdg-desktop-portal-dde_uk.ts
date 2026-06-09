@@ -1,6 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS>
-<TS version="2.1" language="uk">
+<?xml version="1.0" ?><!DOCTYPE TS><TS version="2.1" language="uk">
 <context>
     <name>AccessDialog</name>
     <message>
@@ -14,7 +12,7 @@
     <message>
         <source>%1 (%2s)</source>
         <comment>e.g. Deny Access (15s)</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1 (%2с)</translation>
     </message>
 </context>
 <context>

@@ -1,11 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS>
-<TS version="2.1" language="zh_TW">
+<?xml version="1.0" ?><!DOCTYPE TS><TS version="2.1" language="zh_TW">
 <context>
     <name>AccessDialog</name>
     <message>
         <source>Deny Access</source>
-        <translation>禁止</translation>
+        <translation>拒絕</translation>
     </message>
     <message>
         <source>Grant Access</source>
@@ -14,7 +12,7 @@
     <message>
         <source>%1 (%2s)</source>
         <comment>e.g. Deny Access (15s)</comment>
-        <translation>%1 (%2秒)</translation>
+        <translation type="unfinished"/>
     </message>
 </context>
 <context>
