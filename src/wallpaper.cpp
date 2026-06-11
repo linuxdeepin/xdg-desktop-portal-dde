@@ -1,117 +1,96 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021-2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "wallpaper.h"
-#include "personalization_manager_client.h"
+#include "wayland/loggings.h"
+#include "wayland/protocols/wallpapermanagerclient.h"
+#include "wayland/dbushelpers.h"
 
-#include <QFile>
-#include <QLoggingCategory>
 #include <QDBusMessage>
-#include <qdbusconnection.h>
-#include <qloggingcategory.h>
-#include <QDBusPendingReply>
-
-Q_LOGGING_CATEGORY(XdgDesktopDDEWallpaper, "xdg-dde-wallpaper")
+#include <QGuiApplication>
+#include <QScreen>
+#include <QLoggingCategory>
 
 WallPaperPortal::WallPaperPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
-    , m_personalizationManager(new PersonalizationManager)
+    , m_wallpaperManager(new TreelandWallpaperManagerV1())
 {
-    qCDebug(XdgDesktopDDEWallpaper) << "WallPaper init";
 }
 
 WallPaperPortal::~WallPaperPortal()
 {
-    if (m_personalizationManager) {
-        delete m_personalizationManager;
-        m_personalizationManager = nullptr;
-    }
+    delete m_wallpaperManager;
 }
 
-uint WallPaperPortal::SetWallpaperURI(const QDBusObjectPath &handle,
+void WallPaperPortal::SetWallpaperURI(const QDBusObjectPath &handle,
                                       const QString &app_id,
                                       const QString &parent_window,
                                       const QString &uri,
-                                      const QVariantMap &options)
+                                      const QVariantMap &options,
+                                      const QDBusMessage &message,
+                                      uint &replyResponse)
 {
-    return set_Treeland_WallpaperURI(handle, app_id, parent_window, uri, options);
-}
+    Q_UNUSED(handle)
+    Q_UNUSED(parent_window)
 
-uint WallPaperPortal::set_V20_WallpaperURI(const QDBusObjectPath &handle,
-                          const QString &app_id,
-                          const QString &parent_window,
-                          const QString &uri,
-                          const QVariantMap &options)
-{
-    // TODO: 未处理options，仅实现设置主屏壁纸
-    // options.value("show-preview").toBool(); // whether to show a preview of the picture. Note that the portal may decide to show a preview even if this option is not set
-    // options.value("set-on").toString(); // where to set the wallpaper. Possible values are 'background', 'lockscreen' or 'both'
+    qCDebug(WALLPAPER) << "SetWallpaperURI called with parameters:";
+    qCDebug(WALLPAPER) << "    app_id:" << app_id;
+    qCDebug(WALLPAPER) << "    uri:" << uri;
+    qCDebug(WALLPAPER) << "    options:" << options;
 
-    qCDebug(XdgDesktopDDEWallpaper) << "Start set wallpaper";
-    QDBusMessage primaryMsg = QDBusMessage::createMethodCall(QStringLiteral("org.deepin.dde.Display1"),
-                                                             QStringLiteral("/org/deepin/dde/Display1"),
-                                                             QStringLiteral("org.freedesktop.DBus.Properties"),
-                                                             QStringLiteral("Get"));
-    primaryMsg.setArguments({QVariant::fromValue(QStringLiteral("org.deepin.dde.Display1")), QVariant::fromValue(QStringLiteral("Primary"))});
-    QDBusPendingReply<QDBusVariant> primaryReply = QDBusConnection::sessionBus().call(primaryMsg);
-    if (primaryReply.isError()) {
-        qCDebug(XdgDesktopDDEWallpaper) << "setting failed";
-        return 1;
+    Location location;
+    const QString setOn = options.value(QStringLiteral("set-on")).toString();
+    if (setOn == QStringLiteral("background")) {
+        location = Desktop;
+    } else if (setOn == QStringLiteral("lockscreen")) {
+        location = Lockscreen;
+    } else if (setOn == QStringLiteral("both")) {
+        location = Both;
+    } else {
+        qCWarning(WALLPAPER) << "Unknown location for wallpaper:" << setOn;
+        replyResponse = PortalResponse::OtherError;
+        return;
     }
 
-    QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.deepin.dde.Appearance1"),
-                                                      QStringLiteral("/org/deepin/dde/Appearance1"),
-                                                      QStringLiteral("org.deepin.dde.Appearance1"),
-                                                      QStringLiteral("SetMonitorBackground"));
-    msg.setArguments({QVariant::fromValue(primaryReply.value().variant().toString()), QVariant::fromValue(uri)});
-    QDBusPendingReply<> pcall = QDBusConnection::sessionBus().call(msg);
-    if (pcall.isValid()) {
-        qCDebug(XdgDesktopDDEWallpaper) << "setting succeed";
-        return 0;
-    }
-    qCDebug(XdgDesktopDDEWallpaper) << "setting failed";
-
-    return 1;
-}
-
-uint WallPaperPortal::set_Treeland_WallpaperURI(const QDBusObjectPath &handle,
-                               const QString &app_id,
-                               const QString &parent_window,
-                               const QString &uri,
-                               const QVariantMap &options)
-{
-    if (!m_personalizationManager)
-        return 1;
-
-    auto wallpaper = m_personalizationManager->wallpaper();
-    if (!wallpaper)
-        return 1;
-
-    QFile file(uri);
-    if (file.open(QIODevice::ReadOnly)) {
-        wallpaper->set_on(setOn2Int(options));
-        wallpaper->set_fd(file.handle(), "");
-        wallpaper->commit();
+    const QUrl url(uri);
+    if (!url.isValid()) {
+        qCWarning(WALLPAPER) << "Url is not valid:" << uri;
+        replyResponse = PortalResponse::OtherError;
+        return;
     }
 
-    return 1;
+    setWallpaper(url, location);
+    replyResponse = PortalResponse::Success;
 }
 
-uint32_t WallPaperPortal::setOn2Int(const QVariantMap &options)
+void WallPaperPortal::setWallpaper(const QUrl &url, WallPaperPortal::Location location)
 {
-    QString set_on = options.value("set-on").toString();
-    uint32_t op = 0;
-    if (set_on == "background")
-        op = PersonalizationWallpaperContext::options_background;
-    else if (set_on == "lockscreen")
-        op = PersonalizationWallpaperContext::options_lockscreen;
-    else if (set_on == "both")
-        op = PersonalizationWallpaperContext::options_lockscreen |
-             PersonalizationWallpaperContext::options_background;
+    if (!m_wallpaperManager || !m_wallpaperManager->isActive()) {
+        qCWarning(WALLPAPER) << "Wallpaper manager wayland extension is not available";
+        return;
+    }
 
-    if (options.value("show-preview").toBool())
-        op = op | PersonalizationWallpaperContext::options_preview;
+    TreelandWallpaperV1::WallpaperRoles roles;
+    switch (location) {
+    case WallPaperPortal::Desktop:
+        roles = TreelandWallpaperV1::Desktop;
+        break;
+    case WallPaperPortal::Lockscreen:
+        roles = TreelandWallpaperV1::Lockscreen;
+        break;
+    case WallPaperPortal::Both:
+        roles = TreelandWallpaperV1::Desktop | TreelandWallpaperV1::Lockscreen;
+        break;
+    }
 
-    return op;
+    const QString filePath = url.toLocalFile();
+
+    for (QScreen *screen : qGuiApp->screens()) {
+        auto *wallpaper = m_wallpaperManager->createWallpaper(screen);
+        if (!wallpaper) {
+            continue;
+        }
+        wallpaper->setSource(filePath, roles);
+    }
 }

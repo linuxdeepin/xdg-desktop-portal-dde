@@ -68,8 +68,6 @@ set(SRC
     dbushelpers.h
     utils.h
     utils.cpp
-    personalization_manager_client.h
-    personalization_manager_client.cpp
     accessdialog.h
     accessdialog.cpp
 )

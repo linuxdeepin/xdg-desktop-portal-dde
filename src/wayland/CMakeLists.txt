@@ -79,6 +79,8 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     outputpipewirestream.cpp
     toplevelpipewirestream.h
     toplevelpipewirestream.cpp
+    protocols/wallpapermanagerclient.h
+    protocols/wallpapermanagerclient.cpp
 )
 
 qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILES
@@ -89,6 +91,7 @@ qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILE
     ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-foreign-toplevel-list/ext-foreign-toplevel-list-v1.xml
     ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-image-copy-capture/ext-image-copy-capture-v1.xml
     ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-image-capture-source/ext-image-capture-source-v1.xml
+    ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-wallpaper-manager-unstable-v1.xml
 )
 
 # Patch the generated linux-dmabuf protocol header to include core wayland interface
