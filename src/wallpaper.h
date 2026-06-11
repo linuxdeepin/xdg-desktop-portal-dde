@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021-2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -6,9 +6,11 @@
 
 #include <QDBusAbstractAdaptor>
 #include <QDBusObjectPath>
+#include <QDBusMessage>
+#include <QUrl>
 #include <qobjectdefs.h>
 
-class PersonalizationManager;
+class TreelandWallpaperManagerV1;
 
 class WallPaperPortal : public QDBusAbstractAdaptor
 {
@@ -16,31 +18,26 @@ class WallPaperPortal : public QDBusAbstractAdaptor
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Wallpaper")
 
 public:
+    enum Location {
+        Desktop,
+        Lockscreen,
+        Both
+    };
+
     explicit WallPaperPortal(QObject *parent);
     ~WallPaperPortal();
 
-public slots:
-    uint SetWallpaperURI(const QDBusObjectPath &handle,
+public Q_SLOTS:
+    void SetWallpaperURI(const QDBusObjectPath &handle,
                          const QString &app_id,
                          const QString &parent_window,
                          const QString &uri,
-                         const QVariantMap &options);
+                         const QVariantMap &options,
+                         const QDBusMessage &message,
+                         uint &replyResponse);
 
 private:
-    uint set_V20_WallpaperURI(const QDBusObjectPath &handle,
-                              const QString &app_id,
-                              const QString &parent_window,
-                              const QString &uri,
-                              const QVariantMap &options);
+    void setWallpaper(const QUrl &url, Location location);
 
-    uint set_Treeland_WallpaperURI(const QDBusObjectPath &handle,
-                                   const QString &app_id,
-                                   const QString &parent_window,
-                                   const QString &uri,
-                                   const QVariantMap &options);
-
-    uint32_t setOn2Int(const QVariantMap &options);
-
-private:
-    PersonalizationManager *m_personalizationManager = nullptr;
+    TreelandWallpaperManagerV1 *m_wallpaperManager = nullptr;
 };
