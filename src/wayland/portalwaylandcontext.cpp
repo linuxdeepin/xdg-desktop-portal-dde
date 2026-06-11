@@ -5,6 +5,7 @@
 #include "portalwaylandcontext.h"
 #include "screenshotportal.h"
 #include "screencastportal.h"
+#include "filechooser.h"
 
 #include <QGuiApplication>
 #include <qpa/qplatformintegration.h>
@@ -19,6 +20,7 @@ PortalWaylandContext::PortalWaylandContext(QObject *parent)
     , QDBusContext()
     , m_screenCopyManager(new ScreenCopyManager(this))
     , m_treelandCaptureManager(new TreeLandCaptureManager(this))
+    , m_fileChooser(new FileChooserPortal(this))
 {
     auto screenShotPortal = new ScreenshotPortalWayland(this);
     auto screencastPortal = new ScreencastPortalWayland(this);

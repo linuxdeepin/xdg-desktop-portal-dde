@@ -10,6 +10,8 @@
 #include <QDBusContext>
 #include <private/qwaylanddisplay_p.h>
 
+class FileChooserPortal;
+
 class PortalWaylandContext : public QObject, public QDBusContext
 {
     Q_OBJECT
@@ -22,4 +24,5 @@ public:
 private:
     ScreenCopyManager *m_screenCopyManager;
     TreeLandCaptureManager *m_treelandCaptureManager;
+    FileChooserPortal *m_fileChooser;
 };
