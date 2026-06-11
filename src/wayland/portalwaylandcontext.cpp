@@ -1,10 +1,11 @@
-// SPDX-FileCopyrightText: 2024 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2024-2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "portalwaylandcontext.h"
 #include "screenshotportal.h"
 #include "screencastportal.h"
+#include "wallpaper.h"
 
 #include <QGuiApplication>
 #include <qpa/qplatformintegration.h>
@@ -22,4 +23,5 @@ PortalWaylandContext::PortalWaylandContext(QObject *parent)
 {
     auto screenShotPortal = new ScreenshotPortalWayland(this);
     auto screencastPortal = new ScreencastPortalWayland(this);
+    auto m_wallpaper = new WallPaperPortal(this);
 }
