@@ -7,13 +7,18 @@
 #include "protocols/treelandcapture.h"
 #include "loggings.h"
 #include "dbushelpers.h"
+#include "request2.h"
 
 #include <QApplication>
+#include <QDateTime>
 #include <QScreen>
 #include <QPainter>
 #include <QDir>
+#include <QEventLoop>
+#include <QPointer>
 #include <QRegion>
 #include <QStandardPaths>
+#include <QTimer>
 
 #include <private/qwaylandscreen_p.h>
 
@@ -23,9 +28,12 @@ struct ScreenCaptureInfo {
     QPointer<ScreenCopyFrame> capturedFrame {nullptr};
     QtWaylandClient::QWaylandShmBuffer *shmBuffer {nullptr};
     QtWayland::zwlr_screencopy_frame_v1::flags flags;
+    bool completed {false};
 };
 
-static void destroyScreenCaptureInfo(std::list<std::shared_ptr<ScreenCaptureInfo>> captureList)
+static constexpr int FullscreenScreenshotTimeoutMs = 3000;
+
+static void destroyScreenCaptureInfo(const std::list<std::shared_ptr<ScreenCaptureInfo>> &captureList)
 {
     for (const auto &info : std::as_const(captureList)) {
         if (info->shmBuffer) {
@@ -60,14 +68,34 @@ uint ScreenshotPortalWayland::PickColor(const QDBusObjectPath &handle,
     return PortalResponse::Cancelled;
 }
 
-QString ScreenshotPortalWayland::fullScreenShot()
+QString ScreenshotPortalWayland::fullScreenShot(Request2 *request, bool *cancelled)
 {
     std::list<std::shared_ptr<ScreenCaptureInfo>> captureList;
     int pendingCapture = 0;
     auto screenCopyManager = context()->screenCopyManager();
     QEventLoop eventLoop;
+    QTimer timeoutTimer;
     QRegion outputRegion;
-    QImage::Format formatLast;
+    QImage::Format formatLast = QImage::Format_ARGB32_Premultiplied;
+    bool captureFailed = false;
+    bool timedOut = false;
+
+    if (cancelled)
+        *cancelled = false;
+
+    timeoutTimer.setSingleShot(true);
+    connect(&timeoutTimer, &QTimer::timeout, &eventLoop, [&] {
+        timedOut = true;
+        eventLoop.quit();
+    });
+    if (request) {
+        connect(request, &Request2::closeRequested, &eventLoop, [&] {
+            if (cancelled)
+                *cancelled = true;
+            eventLoop.quit();
+        });
+    }
+
     // Capture each output
     for (auto screen : waylandDisplay()->screens()) {
         auto info = std::make_shared<ScreenCaptureInfo>();
@@ -102,28 +130,53 @@ QString ScreenshotPortalWayland::fullScreenShot()
                     info->flags = static_cast<QtWayland::zwlr_screencopy_frame_v1::flags>(flags);
                 });
         connect(info->capturedFrame, &ScreenCopyFrame::ready, this,
-                [info, &pendingCapture, &eventLoop, &formatLast](uint32_t tv_sec_hi, uint32_t tv_sec_lo, uint32_t tv_nsec) {
+                [info, &pendingCapture, &eventLoop, &formatLast, &captureFailed](uint32_t tv_sec_hi, uint32_t tv_sec_lo, uint32_t tv_nsec) {
                     Q_UNUSED(tv_sec_hi);
                     Q_UNUSED(tv_sec_lo);
                     Q_UNUSED(tv_nsec);
-                    formatLast = info->shmBuffer->image()->format();
+                    if (info->completed)
+                        return;
+                    info->completed = true;
+                    if (!info->shmBuffer || !info->shmBuffer->image()) {
+                        captureFailed = true;
+                    } else {
+                        formatLast = info->shmBuffer->image()->format();
+                    }
                     if (--pendingCapture == 0) {
                         eventLoop.quit();
                     }
                 });
-        connect(info->capturedFrame, &ScreenCopyFrame::failed, this, [&pendingCapture, &eventLoop]{
+        connect(info->capturedFrame, &ScreenCopyFrame::failed, this, [info, &pendingCapture, &eventLoop, &captureFailed]{
+            if (info->completed)
+                return;
+            info->completed = true;
+            captureFailed = true;
             if (--pendingCapture == 0) {
                 eventLoop.quit();
             }
         });
     }
+    if (pendingCapture == 0) {
+        qCWarning(portalWayland) << "No outputs are available for screenshot";
+        destroyScreenCaptureInfo(captureList);
+        return "";
+    }
+    timeoutTimer.start(FullscreenScreenshotTimeoutMs);
     eventLoop.exec();
+    timeoutTimer.stop();
+    if ((cancelled && *cancelled) || timedOut || captureFailed) {
+        if (timedOut)
+            qCWarning(portalWayland) << "Fullscreen screenshot timed out";
+        destroyScreenCaptureInfo(captureList);
+        return "";
+    }
+
     // Cat them according to layout
     QImage image(outputRegion.boundingRect().size(), formatLast);
     QPainter p(&image);
     p.setRenderHint(QPainter::Antialiasing);
     for (const auto &info : std::as_const(captureList)) {
-        if (info->shmBuffer) {
+        if (info->shmBuffer && info->shmBuffer->image()) {
             QRect targetRect = info->screen->geometry();
             // Convert to screen image local coordinates
             auto sourceRect = targetRect;
@@ -147,13 +200,16 @@ QString ScreenshotPortalWayland::fullScreenShot()
     }
 }
 
-QString ScreenshotPortalWayland::captureInteractively()
+QString ScreenshotPortalWayland::captureInteractively(Request2 *request, bool *cancelled)
 {
     auto captureManager = context()->treelandCaptureManager();
     auto captureContext = captureManager->getContext();
+    bool sourceFailed = false;
     if (!captureContext) {
         return "";
     }
+    if (cancelled)
+        *cancelled = false;
     captureContext->selectSource(QtWayland::treeland_capture_context_v1::source_type_output
                                          | QtWayland::treeland_capture_context_v1::source_type_window
                                          | QtWayland::treeland_capture_context_v1::source_type_region
@@ -162,7 +218,22 @@ QString ScreenshotPortalWayland::captureInteractively()
                                  ,nullptr);
     QEventLoop loop;
     connect(captureContext, &TreeLandCaptureContext::sourceReady, &loop, &QEventLoop::quit);
+    connect(captureContext, &TreeLandCaptureContext::sourceFailed, &loop, [&] {
+        sourceFailed = true;
+        loop.quit();
+    });
+    if (request) {
+        connect(request, &Request2::closeRequested, &loop, [&] {
+            if (cancelled)
+                *cancelled = true;
+            loop.quit();
+        });
+    }
     loop.exec();
+    if ((cancelled && *cancelled) || sourceFailed) {
+        captureManager->releaseCaptureContext(captureContext);
+        return "";
+    }
     auto frame = captureContext->frame();
     QImage result;
     connect(frame, &TreeLandCaptureFrame::ready, this, [this, &result, &loop](QImage image) {
@@ -170,8 +241,16 @@ QString ScreenshotPortalWayland::captureInteractively()
         loop.quit();
     });
     connect(frame, &TreeLandCaptureFrame::failed, &loop, &QEventLoop::quit);
+    if (request) {
+        connect(request, &Request2::closeRequested, &loop, [&] {
+            if (cancelled)
+                *cancelled = true;
+            loop.quit();
+        });
+    }
     loop.exec();
-    if (result.isNull()) return "";
+    captureManager->releaseCaptureContext(captureContext);
+    if ((cancelled && *cancelled) || result.isNull()) return "";
     auto saveBasePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
     QDir saveBaseDir(saveBasePath);
     if (!saveBaseDir.exists()) return "";
@@ -189,18 +268,34 @@ uint ScreenshotPortalWayland::Screenshot(const QDBusObjectPath &handle,
                                   const QVariantMap &options,
                                   QVariantMap &results)
 {
+    uint response = PortalResponse::Success;
+    QPointer<Request2> request;
+    bool cancelled = false;
+
+    if (m_screenshotInProgress) {
+        qCWarning(portalWayland) << "Rejecting concurrent screenshot request";
+        return PortalResponse::OtherError;
+    }
+    m_screenshotInProgress = true;
+
+    request = new Request2(handle, this, QStringLiteral("Screenshot"));
     if (options["modal"].toBool()) {
         // TODO if modal, we should block parent_window
     }
     QString filePath;
     if (options["interactive"].toBool()) {
-        filePath = captureInteractively();
+        filePath = captureInteractively(request, &cancelled);
     } else {
-        filePath = fullScreenShot();
+        filePath = fullScreenShot(request, &cancelled);
     }
     if (filePath.isEmpty()) {
-        return 1;
+        response = cancelled ? PortalResponse::Cancelled :
+                               PortalResponse::OtherError;
+    } else {
+        results.insert(QStringLiteral("uri"), QUrl::fromLocalFile(filePath).toString(QUrl::FullyEncoded));
     }
-    results.insert(QStringLiteral("uri"), QUrl::fromLocalFile(filePath).toString(QUrl::FullyEncoded));
-    return 0;
+    if (request)
+        delete request.data();
+    m_screenshotInProgress = false;
+    return response;
 }

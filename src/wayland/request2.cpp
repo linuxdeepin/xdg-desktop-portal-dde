@@ -19,18 +19,23 @@ Request2::Request2(const QDBusObjectPath &handle, QObject *parent, const QString
     : QDBusVirtualObject(parent)
     , m_data(data)
     , m_portalName(portalName)
+    , m_path(handle.path())
 {
     auto sessionBus = QDBusConnection::sessionBus();
-    if (sessionBus.registerVirtualObject(handle.path(), this, QDBusConnection::VirtualObjectRegisterOption::SubPath)) {
-        connect(this, &Request2::closeRequested, this, [this, handle]() {
-            QDBusConnection::sessionBus().unregisterObject(handle.path());
+    if (sessionBus.registerVirtualObject(m_path, this, QDBusConnection::VirtualObjectRegisterOption::SubPath)) {
+        connect(this, &Request2::closeRequested, this, [this]() {
             deleteLater();
         });
     } else {
         qCDebug(PORTAL_COMMON) << sessionBus.lastError().message();
-        qCDebug(PORTAL_COMMON) << "Failed to register request object for" << handle.path();
+        qCDebug(PORTAL_COMMON) << "Failed to register request object for" << m_path;
         deleteLater();
     }
+}
+
+Request2::~Request2()
+{
+    QDBusConnection::sessionBus().unregisterObject(m_path);
 }
 
 bool Request2::handleMessage(const QDBusMessage &message, const QDBusConnection &connection)

@@ -9,6 +9,8 @@
 #include <QDBusObjectPath>
 #include <QObject>
 
+class Request2;
+
 class ScreenshotPortalWayland : public AbstractWaylandPortal
 {
     Q_OBJECT
@@ -17,8 +19,8 @@ class ScreenshotPortalWayland : public AbstractWaylandPortal
 public:
     ScreenshotPortalWayland(PortalWaylandContext *context);
 
-    QString fullScreenShot();
-    QString captureInteractively();
+    QString fullScreenShot(Request2 *request, bool *cancelled);
+    QString captureInteractively(Request2 *request, bool *cancelled);
 
 public Q_SLOTS:
     uint PickColor(const QDBusObjectPath &handle,
@@ -31,4 +33,7 @@ public Q_SLOTS:
                     const QString &parent_window,
                     const QVariantMap &options,
                     QVariantMap &results);
+
+private:
+    bool m_screenshotInProgress = false;
 };
