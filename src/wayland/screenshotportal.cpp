@@ -27,7 +27,16 @@ struct ScreenCaptureInfo {
     QtWaylandClient::QWaylandScreen *screen {nullptr};
     QPointer<ScreenCopyFrame> capturedFrame {nullptr};
     QtWaylandClient::QWaylandShmBuffer *shmBuffer {nullptr};
+    uint32_t shmFormat {0};
+    uint32_t shmWidth {0};
+    uint32_t shmHeight {0};
+    uint32_t shmStride {0};
     QtWayland::zwlr_screencopy_frame_v1::flags flags;
+    bool receivedShmBuffer {false};
+    bool hasCompatibleShmBuffer {false};
+    bool receivedDmabuf {false};
+    bool bufferDone {false};
+    bool copyRequested {false};
     bool completed {false};
 };
 
@@ -41,6 +50,9 @@ static void destroyScreenCaptureInfo(const std::list<std::shared_ptr<ScreenCaptu
         }
 
         if (info->capturedFrame) {
+            QObject::disconnect(info->capturedFrame, nullptr, nullptr, nullptr);
+            if (info->capturedFrame->isInitialized())
+                info->capturedFrame->destroy();
             delete info->capturedFrame;
         }
     }
@@ -83,6 +95,20 @@ QString ScreenshotPortalWayland::fullScreenShot(Request2 *request, bool *cancell
     if (cancelled)
         *cancelled = false;
 
+    auto completeCapture = [&pendingCapture, &eventLoop, &captureFailed]
+            (const std::shared_ptr<ScreenCaptureInfo> &info, bool failed) {
+        if (info->completed)
+            return;
+
+        info->completed = true;
+        if (failed)
+            captureFailed = true;
+
+        if (--pendingCapture == 0) {
+            eventLoop.quit();
+        }
+    };
+
     timeoutTimer.setSingleShot(true);
     connect(&timeoutTimer, &QTimer::timeout, &eventLoop, [&] {
         timedOut = true;
@@ -102,13 +128,24 @@ QString ScreenshotPortalWayland::fullScreenShot(Request2 *request, bool *cancell
         outputRegion += screen->geometry();
         auto output = screen->output();
         info->capturedFrame = screenCopyManager->captureOutput(false, output);
+        if (!info->capturedFrame) {
+            qCWarning(portalWayland) << "Failed to create screencopy frame for output" << screen->geometry();
+            captureFailed = true;
+            continue;
+        }
         info->screen = screen;
         ++pendingCapture;
         captureList.push_back(info);
         connect(info->capturedFrame, &ScreenCopyFrame::buffer, this,
                 [info](uint32_t format, uint32_t width, uint32_t height, uint32_t stride){
-                    // Create a new wl_buffer for reception
-                    // For some reason, Qt regards stride == width * 4, and it creates buffer likewise, we must check this
+                    info->receivedShmBuffer = true;
+
+                    /*
+                     * QWaylandShmBuffer creates tightly packed images, so only
+                     * accept the wl_shm format that it can represent. Wait for
+                     * buffer_done before sending copy(), as required by the
+                     * screencopy protocol.
+                     */
                     if (stride != width * 4) {
                         qCDebug(SCREESHOT)
                         << "Receive a buffer format which is not compatible with QWaylandShmBuffer."
@@ -116,13 +153,45 @@ QString ScreenshotPortalWayland::fullScreenShot(Request2 *request, bool *cancell
                         << "stride:" << stride;
                         return;
                     }
-                    if (info->shmBuffer)
+
+                    if (info->hasCompatibleShmBuffer)
                         return; // We only need one supported format
+
+                    info->hasCompatibleShmBuffer = true;
+                    info->shmFormat = format;
+                    info->shmWidth = width;
+                    info->shmHeight = height;
+                    info->shmStride = stride;
+                });
+        connect(info->capturedFrame, &ScreenCopyFrame::linuxDmabuf, this,
+                [info](uint32_t format, uint32_t width, uint32_t height) {
+                    Q_UNUSED(format);
+                    Q_UNUSED(width);
+                    Q_UNUSED(height);
+                    info->receivedDmabuf = true;
+                });
+        connect(info->capturedFrame, &ScreenCopyFrame::bufferDone, this,
+                [this, info, completeCapture] {
+                    if (info->completed || info->copyRequested)
+                        return;
+
+                    info->bufferDone = true;
+
+                    if (!info->hasCompatibleShmBuffer) {
+                        qCWarning(portalWayland)
+                                << "No compatible wl_shm buffer for screenshot output"
+                                << (info->screen ? info->screen->geometry() : QRect())
+                                << "receivedShmBuffer=" << info->receivedShmBuffer
+                                << "receivedDmabuf=" << info->receivedDmabuf;
+                        completeCapture(info, true);
+                        return;
+                    }
 
                     info->shmBuffer = new QtWaylandClient::QWaylandShmBuffer(
                             waylandDisplay(),
-                            QSize(width, height),
-                            QtWaylandClient::QWaylandShm::formatFrom(static_cast<::wl_shm_format>(format)));
+                            QSize(info->shmWidth, info->shmHeight),
+                            QtWaylandClient::QWaylandShm::formatFrom(static_cast<::wl_shm_format>(info->shmFormat)));
+                    info->copyRequested = true;
                     info->capturedFrame->copy(info->shmBuffer->buffer());
                 });
         connect(info->capturedFrame, &ScreenCopyFrame::frameFlags, this,
@@ -130,30 +199,26 @@ QString ScreenshotPortalWayland::fullScreenShot(Request2 *request, bool *cancell
                     info->flags = static_cast<QtWayland::zwlr_screencopy_frame_v1::flags>(flags);
                 });
         connect(info->capturedFrame, &ScreenCopyFrame::ready, this,
-                [info, &pendingCapture, &eventLoop, &formatLast, &captureFailed](uint32_t tv_sec_hi, uint32_t tv_sec_lo, uint32_t tv_nsec) {
+                [info, &formatLast, completeCapture](uint32_t tv_sec_hi, uint32_t tv_sec_lo, uint32_t tv_nsec) {
                     Q_UNUSED(tv_sec_hi);
                     Q_UNUSED(tv_sec_lo);
                     Q_UNUSED(tv_nsec);
                     if (info->completed)
                         return;
-                    info->completed = true;
                     if (!info->shmBuffer || !info->shmBuffer->image()) {
-                        captureFailed = true;
+                        completeCapture(info, true);
                     } else {
                         formatLast = info->shmBuffer->image()->format();
-                    }
-                    if (--pendingCapture == 0) {
-                        eventLoop.quit();
+                        completeCapture(info, false);
                     }
                 });
-        connect(info->capturedFrame, &ScreenCopyFrame::failed, this, [info, &pendingCapture, &eventLoop, &captureFailed]{
+        connect(info->capturedFrame, &ScreenCopyFrame::failed, this, [info, completeCapture]{
             if (info->completed)
                 return;
-            info->completed = true;
-            captureFailed = true;
-            if (--pendingCapture == 0) {
-                eventLoop.quit();
-            }
+            qCWarning(portalWayland)
+                    << "Screencopy failed for screenshot output"
+                    << (info->screen ? info->screen->geometry() : QRect());
+            completeCapture(info, true);
         });
     }
     if (pendingCapture == 0) {
@@ -165,8 +230,22 @@ QString ScreenshotPortalWayland::fullScreenShot(Request2 *request, bool *cancell
     eventLoop.exec();
     timeoutTimer.stop();
     if ((cancelled && *cancelled) || timedOut || captureFailed) {
-        if (timedOut)
+        if (timedOut) {
             qCWarning(portalWayland) << "Fullscreen screenshot timed out";
+            for (const auto &info : std::as_const(captureList)) {
+                if (info->completed)
+                    continue;
+
+                qCWarning(portalWayland)
+                        << "Pending screenshot output"
+                        << (info->screen ? info->screen->geometry() : QRect())
+                        << "receivedShmBuffer=" << info->receivedShmBuffer
+                        << "hasCompatibleShmBuffer=" << info->hasCompatibleShmBuffer
+                        << "receivedDmabuf=" << info->receivedDmabuf
+                        << "bufferDone=" << info->bufferDone
+                        << "copyRequested=" << info->copyRequested;
+            }
+        }
         destroyScreenCaptureInfo(captureList);
         return "";
     }
