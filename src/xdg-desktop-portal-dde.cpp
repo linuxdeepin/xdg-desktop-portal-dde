@@ -1,8 +1,9 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "ddesktopportal.h"
+#include "filechooser.h"
 #include "wayland/portalwaylandcontext.h"
 #include "wayland/toplevelmodel.h"
 #include "wayland/restoredata.h"
@@ -56,6 +57,7 @@ int main(int argc, char *argv[])
     if (sessionBus.registerService(QStringLiteral("org.freedesktop.impl.portal.desktop.dde"))) {
         if (onWayland()) {
             PortalWaylandContext *waylandContext = new PortalWaylandContext(&a);
+            new FileChooserPortal(waylandContext);
             if (sessionBus.registerObject(QStringLiteral("/org/freedesktop/portal/desktop"),
                                           waylandContext,
                                           QDBusConnection::ExportAdaptors)) {
