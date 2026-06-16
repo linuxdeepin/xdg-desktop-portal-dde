@@ -18,7 +18,7 @@ Build-Depends:
   wlr-protocols,
   libdtk6widget-dev,
   libdtk6core-dev,
-  treeland-protocols,
+  treeland-protocols (>= 0.5.9),
   libgbm-dev,
   libdrm-dev,
   wayland-protocols,

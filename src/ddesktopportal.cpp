@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021-2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -14,7 +14,6 @@
 #include "screenshot.h"
 #include "background.h"
 #include "filechooser.h"
-#include "wallpaper.h"
 #include "notification.h"
 #include "access.h"
 
@@ -22,7 +21,6 @@ DDesktopPortal::DDesktopPortal(QObject *parent)
     : QObject(parent)
     , m_appChooser(new AppChooserPortal(this))
     , m_fileChooser(new FileChooserPortal(this))
-    , m_wallpaper(new WallPaperPortal(this))
     , m_notification(new NotificationPortal(this))
     , m_access(new AccessPortal(this))
 {
