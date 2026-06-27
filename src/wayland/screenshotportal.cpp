@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2024 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -12,7 +12,6 @@
 #include <QScreen>
 #include <QPainter>
 #include <QDir>
-#include <QRegion>
 #include <QStandardPaths>
 
 #include <private/qwaylandscreen_p.h>
@@ -36,6 +35,112 @@ static void destroyScreenCaptureInfo(std::list<std::shared_ptr<ScreenCaptureInfo
             delete info->capturedFrame;
         }
     }
+}
+
+static bool captureInfoHasImage(const std::shared_ptr<ScreenCaptureInfo> &info)
+{
+    return info && info->screen && info->shmBuffer && info->shmBuffer->image() &&
+           !info->shmBuffer->image()->isNull();
+}
+
+static int captureInfoAxisStart(const std::shared_ptr<ScreenCaptureInfo> &info, bool horizontal)
+{
+    const QRect geometry = info->screen->geometry();
+    return horizontal ? geometry.x() : geometry.y();
+}
+
+static int captureInfoAxisEnd(const std::shared_ptr<ScreenCaptureInfo> &info, bool horizontal)
+{
+    const QRect geometry = info->screen->geometry();
+    return horizontal ? geometry.x() + geometry.width() :
+                        geometry.y() + geometry.height();
+}
+
+static qreal captureInfoAxisScale(const std::shared_ptr<ScreenCaptureInfo> &info, bool horizontal)
+{
+    const QRect geometry = info->screen->geometry();
+    const QImage *image = info->shmBuffer->image();
+    const int logicalSize = horizontal ? geometry.width() : geometry.height();
+    const int pixelSize = horizontal ? image->width() : image->height();
+
+    if (logicalSize <= 0 || pixelSize <= 0)
+        return 1.0;
+
+    return static_cast<qreal>(pixelSize) / logicalSize;
+}
+
+static int logicalAxisToPhysical(const std::list<std::shared_ptr<ScreenCaptureInfo>> &captureList,
+                                 int logical,
+                                 bool horizontal)
+{
+    bool haveOrigin = false;
+    int origin = 0;
+    int pos;
+    int physical = 0;
+
+    for (const auto &info : std::as_const(captureList)) {
+        if (!captureInfoHasImage(info))
+            continue;
+
+        const int start = captureInfoAxisStart(info, horizontal);
+        if (!haveOrigin || start < origin) {
+            origin = start;
+            haveOrigin = true;
+        }
+    }
+    if (!haveOrigin || logical <= origin)
+        return 0;
+
+    pos = origin;
+    while (pos < logical) {
+        int next = logical;
+        qreal scale = 1.0;
+        bool covered = false;
+
+        for (const auto &info : std::as_const(captureList)) {
+            if (!captureInfoHasImage(info))
+                continue;
+
+            const int start = captureInfoAxisStart(info, horizontal);
+            const int end = captureInfoAxisEnd(info, horizontal);
+
+            if (start <= pos && end > pos) {
+                const qreal outputScale = captureInfoAxisScale(info, horizontal);
+                next = qMin(next, end);
+                scale = covered ? qMax(scale, outputScale) : outputScale;
+                covered = true;
+            } else if (start > pos) {
+                next = qMin(next, start);
+            }
+        }
+
+        if (next <= pos)
+            break;
+
+        if (!covered) {
+            qCWarning(portalWayland) << "Gap in output layout at logical position" << pos
+                                     << "to" << next
+                                     << "on" << (horizontal ? "X" : "Y")
+                                     << "axis, defaulting to scale 1.0";
+        }
+
+        physical += qRound((next - pos) * scale);
+        pos = next;
+    }
+
+    return physical;
+}
+
+static QRect captureInfoPhysicalRect(const std::list<std::shared_ptr<ScreenCaptureInfo>> &captureList,
+                                     const std::shared_ptr<ScreenCaptureInfo> &info)
+{
+    const QRect geometry = info->screen->geometry();
+    const QImage *image = info->shmBuffer->image();
+
+    return QRect(logicalAxisToPhysical(captureList, geometry.x(), true),
+                 logicalAxisToPhysical(captureList, geometry.y(), false),
+                 image->width(),
+                 image->height());
 }
 
 ScreenshotPortalWayland::ScreenshotPortalWayland(PortalWaylandContext *context)
@@ -66,12 +171,10 @@ QString ScreenshotPortalWayland::fullScreenShot()
     int pendingCapture = 0;
     auto screenCopyManager = context()->screenCopyManager();
     QEventLoop eventLoop;
-    QRegion outputRegion;
     QImage::Format formatLast;
     // Capture each output
     for (auto screen : waylandDisplay()->screens()) {
         auto info = std::make_shared<ScreenCaptureInfo>();
-        outputRegion += screen->geometry();
         auto output = screen->output();
         info->capturedFrame = screenCopyManager->captureOutput(false, output);
         info->screen = screen;
@@ -118,19 +221,35 @@ QString ScreenshotPortalWayland::fullScreenShot()
         });
     }
     eventLoop.exec();
-    // Cat them according to layout
-    QImage image(outputRegion.boundingRect().size(), formatLast);
+
+    QRect physicalOutputRegion;
+    for (const auto &info : std::as_const(captureList)) {
+        if (!captureInfoHasImage(info))
+            continue;
+
+        physicalOutputRegion = physicalOutputRegion.united(captureInfoPhysicalRect(captureList, info));
+    }
+    if (physicalOutputRegion.isEmpty()) {
+        qCWarning(portalWayland) << "No valid output images are available for screenshot";
+        destroyScreenCaptureInfo(captureList);
+        return "";
+    }
+
+    // Cat outputs according to their physical pixel buffers. QScreen geometry
+    // is logical under fractional scaling, while screencopy images are pixels.
+    QImage image(physicalOutputRegion.size(), formatLast);
+    image.fill(Qt::transparent);
     QPainter p(&image);
     p.setRenderHint(QPainter::Antialiasing);
     for (const auto &info : std::as_const(captureList)) {
-        if (info->shmBuffer) {
-            QRect targetRect = info->screen->geometry();
-            // Convert to screen image local coordinates
-            auto sourceRect = targetRect;
-            sourceRect.moveTo(sourceRect.topLeft() - info->screen->geometry().topLeft());
-            p.drawImage(targetRect, *info->shmBuffer->image(), sourceRect);
+        if (captureInfoHasImage(info)) {
+            const QImage *outputImage = info->shmBuffer->image();
+            QRect targetRect = captureInfoPhysicalRect(captureList, info);
+            targetRect.translate(-physicalOutputRegion.topLeft());
+            p.drawImage(targetRect, *outputImage, QRect(QPoint(0, 0), outputImage->size()));
         } else {
-            qCWarning(portalWayland) << "image is null!!!";
+            qCWarning(portalWayland) << "No image available for output geometry"
+                                     << (info && info->screen ? info->screen->geometry() : QRect());
         }
     }
     static const char *SaveFormat = "PNG";
