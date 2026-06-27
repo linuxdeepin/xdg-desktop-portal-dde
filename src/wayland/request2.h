@@ -21,6 +21,7 @@ class Request2 : public QDBusVirtualObject
     Q_OBJECT
 public:
     explicit Request2(const QDBusObjectPath &handle, QObject *parent = nullptr, const QString &portalName = QString(), const QVariant &data = QVariant());
+    ~Request2() override;
 
     bool handleMessage(const QDBusMessage &message, const QDBusConnection &connection) override;
     QString introspect(const QString &path) const override;
@@ -47,4 +48,5 @@ Q_SIGNALS:
 private:
     const QVariant m_data;
     const QString m_portalName;
+    const QString m_path;
 };

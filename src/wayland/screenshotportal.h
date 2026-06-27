@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2024 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -8,6 +8,9 @@
 
 #include <QDBusObjectPath>
 #include <QObject>
+#include <QPointer>
+
+class Request2;
 
 class ScreenshotPortalWayland : public AbstractWaylandPortal
 {
@@ -31,4 +34,9 @@ public Q_SLOTS:
                     const QString &parent_window,
                     const QVariantMap &options,
                     QVariantMap &results);
+
+private:
+    QPointer<Request2> m_currentScreenshotRequest;
+    bool m_currentScreenshotCancelled = false;
+    bool m_screenshotInProgress = false;
 };
