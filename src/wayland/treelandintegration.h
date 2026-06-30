@@ -37,10 +37,13 @@ public:
     void init();
     bool isStreamingEnbled() const;
     bool isStreamingAvailable() const;
+    bool isOutputStreamingAvailable() const;
+    bool isToplevelStreamingAvailable() const;
 
     Stream startStreamingOutput(QScreen *screen, PortalCommon::CursorModes mode);
     // Stream startStreamingRegion(const QRect &region, PortalCommon::CursorModes mode);
     Stream startStreamingToplevel(ToplevelInfo *toplevel, PortalCommon::CursorModes mode);
+    QList<ToplevelInfo *> toplevels() const;
 
     Stream startStreaming(AbstractPipeWireStream *stream, const QVariantMap &streamOptions);
     void stopStreaming(uint nodeId);

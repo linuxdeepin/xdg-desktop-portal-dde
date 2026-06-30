@@ -9,6 +9,8 @@ RemoteDesktopSession::RemoteDesktopSession(const QString &appId, const QString &
     :ScreenCastSession(appId, path, "", parent)
     , m_screenSharingEnabled(false)
     , m_clipboardEnabled(false)
+    , m_deviceTypes(PortalCommon::None)
+    , m_virtualInput(std::make_unique<VirtualInput>())
 {
 }
 
@@ -67,11 +69,24 @@ void RemoteDesktopSession::setClipboardEnabled(bool enabled)
 
 void RemoteDesktopSession::acquireStreamingInput()
 {
-    m_acquired = true;
+    if (m_acquired)
+        return;
+    m_acquired = m_deviceTypes == PortalCommon::None
+        || m_virtualInput->initialize(m_deviceTypes);
 }
 
 void RemoteDesktopSession::refreshDescription()
 {
+}
+
+void RemoteDesktopSession::setEisCookie(int cookie)
+{
+    m_cookie = cookie;
+}
+
+int RemoteDesktopSession::eisCookie() const
+{
+    return m_cookie;
 }
 
 Session::SessionType RemoteDesktopSession::type() const

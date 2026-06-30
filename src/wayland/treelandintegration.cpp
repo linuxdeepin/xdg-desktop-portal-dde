@@ -77,8 +77,21 @@ bool TreelandIntergration::isStreamingEnbled() const
 
 bool TreelandIntergration::isStreamingAvailable() const
 {
-    return m_context->linuxDmaBufInterfaceActive() &&
+    return isOutputStreamingAvailable() || isToplevelStreamingAvailable();
+}
+
+bool TreelandIntergration::isOutputStreamingAvailable() const
+{
+    return m_context &&
+            m_context->linuxDmaBufInterfaceActive() &&
             m_context->outputImageCaptureSourceManagerActive() &&
+            m_context->imageCopyCaptureManagerActive();
+}
+
+bool TreelandIntergration::isToplevelStreamingAvailable() const
+{
+    return m_context &&
+            m_context->linuxDmaBufInterfaceActive() &&
             m_context->foreignToplevelImageCaptureSourceManagerActive() &&
             m_context->imageCopyCaptureManagerActive();
 }
@@ -118,6 +131,11 @@ Stream TreelandIntergration::startStreamingToplevel(ToplevelInfo *toplevel, Port
                           {
                                   {QLatin1String("source_type"), static_cast<uint>(PortalCommon::Window)}
                           });
+}
+
+QList<ToplevelInfo *> TreelandIntergration::toplevels() const
+{
+    return m_context ? m_context->toplevels() : QList<ToplevelInfo *>{};
 }
 
 Stream TreelandIntergration::startStreaming(AbstractPipeWireStream *stream, const QVariantMap &streamOptions)

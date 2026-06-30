@@ -16,6 +16,7 @@ find_package(Libdrm REQUIRED)
 find_package(Wayland REQUIRED COMPONENTS Client)
 pkg_check_modules(GBM IMPORTED_TARGET gbm REQUIRED)
 pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3 REQUIRED)
+pkg_check_modules(XKBCOMMON IMPORTED_TARGET xkbcommon REQUIRED)
 
 add_library(xdg-desktop-portal-dde-wayland SHARED
     loggings.h
@@ -81,10 +82,19 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     toplevelpipewirestream.cpp
     protocols/wallpapermanagerclient.h
     protocols/wallpapermanagerclient.cpp
+    protocols/virtualinput.h
+    protocols/virtualinput.cpp
+    remotedesktopportal.h
+    remotedesktopportal.cpp
+    remotedesktopchooser.h
+    remotedesktopchooser.cpp
 )
 
 qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILES
     ${WlrProtocols_PKGDATADIR}/unstable/wlr-screencopy-unstable-v1.xml
+    ${WlrProtocols_PKGDATADIR}/unstable/wlr-virtual-pointer-unstable-v1.xml
+    ${CMAKE_CURRENT_SOURCE_DIR}/protocols/virtual-keyboard-unstable-v1.xml
+    ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-transient-seat/ext-transient-seat-v1.xml
     ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-capture-unstable-v1.xml
     /usr/share/wayland/wayland.xml
     ${WAYLANDPROTOCOlS_PKGDATADIR}/unstable/linux-dmabuf/linux-dmabuf-unstable-v1.xml
@@ -128,6 +138,7 @@ qt_add_qml_module(xdg-desktop-portal-dde-wayland
         OutputListView.qml
         ToplevelList.qml
         Background.qml
+        RemoteDesktopChooserWindow.qml
 )
 
 target_link_libraries(xdg-desktop-portal-dde-wayland
@@ -145,6 +156,7 @@ PUBLIC
     Libdrm::Libdrm
     PkgConfig::GBM
     PkgConfig::PIPEWIRE
+    PkgConfig::XKBCOMMON
     Wayland::Client
 )
 
