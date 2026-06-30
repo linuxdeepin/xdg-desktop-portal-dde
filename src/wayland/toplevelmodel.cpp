@@ -88,7 +88,7 @@ QHash<int, QByteArray> ToplevelListModel::roleNames() const
 QList<ToplevelInfo *> ToplevelListModel::selectedToplevels(int index)
 {
     QList<ToplevelInfo *> ret;
-    if (index > -1) {
+    if (index >= 0 && index < m_toplevels.size()) {
         ret << m_toplevels[index];
     }
     return ret;

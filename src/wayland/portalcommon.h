@@ -49,3 +49,5 @@ public:
     };
     Q_DECLARE_FLAGS(DeviceTypes, DeviceType)
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(PortalCommon::DeviceTypes)

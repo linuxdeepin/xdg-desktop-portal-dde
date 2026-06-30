@@ -4,6 +4,7 @@
 
 #include "session.h"
 #include "screencastsession.h"
+#include "remotedesktopsession.h"
 
 #include <QLoggingCategory>
 #include <QDebug>
@@ -112,6 +113,9 @@ Session *Session::createSession(QObject *parent, SessionType type, const QString
     switch (type) {
     case ScreenCast:
         session = new ScreenCastSession(appId, path, QStringLiteral("media-record"), parent);
+        break;
+    case RemoteDesktop:
+        session = new RemoteDesktopSession(appId, path, parent);
         break;
     default:
         break;

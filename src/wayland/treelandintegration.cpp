@@ -77,22 +77,59 @@ bool TreelandIntergration::isStreamingEnbled() const
 
 bool TreelandIntergration::isStreamingAvailable() const
 {
-    return m_context->linuxDmaBufInterfaceActive() &&
-            m_context->outputImageCaptureSourceManagerActive() &&
-            m_context->foreignToplevelImageCaptureSourceManagerActive() &&
-            m_context->imageCopyCaptureManagerActive();
+    return isOutputStreamingAvailable() || isToplevelStreamingAvailable();
+}
+
+bool TreelandIntergration::isOutputStreamingAvailable() const
+{
+    if (!m_context) {
+        return false;
+    }
+
+    const bool available = m_context->outputImageCaptureSourceManagerActive()
+        && m_context->imageCopyCaptureManagerActive()
+        && (m_context->linuxDmaBufInterfaceActive() || m_context->shmInterfaceActive());
+    if (!available) {
+        qCWarning(SCREENCAST) << "Output capture capabilities:"
+                               << "linuxDmaBuf=" << m_context->linuxDmaBufInterfaceActive()
+                               << "shm=" << m_context->shmInterfaceActive()
+                               << "outputImageCaptureSource=" << m_context->outputImageCaptureSourceManagerActive()
+                               << "imageCopyCapture=" << m_context->imageCopyCaptureManagerActive();
+    }
+    return available;
+}
+
+bool TreelandIntergration::isToplevelStreamingAvailable() const
+{
+    if (!m_context) {
+        return false;
+    }
+
+    const bool available = m_context->foreignToplevelImageCaptureSourceManagerActive()
+        && m_context->imageCopyCaptureManagerActive()
+        && (m_context->linuxDmaBufInterfaceActive() || m_context->shmInterfaceActive());
+    if (!available) {
+        qCWarning(SCREENCAST) << "Toplevel capture capabilities:"
+                               << "linuxDmaBuf=" << m_context->linuxDmaBufInterfaceActive()
+                               << "shm=" << m_context->shmInterfaceActive()
+                               << "foreignToplevelImageCaptureSource=" << m_context->foreignToplevelImageCaptureSourceManagerActive()
+                               << "imageCopyCapture=" << m_context->imageCopyCaptureManagerActive();
+    }
+    return available;
 }
 
 Stream TreelandIntergration::startStreamingOutput(QScreen *screen, PortalCommon::CursorModes mode)
 {
     qCWarning(SCREENCAST) << "start streaming output:" << screen->name();
+    QPointer<QScreen> guardedScreen(screen);
     auto stream = new OutputPipeWireStream(m_context, mode, screen, this);
 
-    return startStreaming(stream,
-                          {
-                                  {QLatin1String("size"), screen->size()},
-                                  {QLatin1String("source_type"), static_cast<uint>(PortalCommon::Monitor)}
-                          });
+    Stream result = startStreaming(stream,
+                                   {{QStringLiteral("size"), screen->size()},
+                                    {QStringLiteral("position"), screen->geometry().topLeft()},
+                                    {QStringLiteral("source_type"), static_cast<uint>(PortalCommon::Monitor)}});
+    result.output = guardedScreen;
+    return result;
 }
 
 // Stream TreelandIntergration::startStreamingRegion(const QRect &region, PortalCommon::CursorModes mode)
@@ -120,58 +157,66 @@ Stream TreelandIntergration::startStreamingToplevel(ToplevelInfo *toplevel, Port
                           });
 }
 
+QList<ToplevelInfo *> TreelandIntergration::toplevels() const
+{
+    return m_context ? m_context->toplevels() : QList<ToplevelInfo *>{};
+}
+
 Stream TreelandIntergration::startStreaming(AbstractPipeWireStream *stream, const QVariantMap &streamOptions)
 {
-    stream->startScreencast();
-    qCWarning(SCREENCAST) << "startStreaming";
     QEventLoop loop;
-    Stream ret;
-
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    QPointer<AbstractPipeWireStream> guardedStream(stream);
+    bool failed = false;
     connect(stream, &AbstractPipeWireStream::failed, &loop, [&](const QString &error) {
-        qCWarning(SCREENCAST) << "failed to start streaming" << stream << error;
+        qCWarning(SCREENCAST) << "Failed to start streaming:" << error;
+        failed = true;
         loop.quit();
     });
-    if (stream->nodeId() != SPA_ID_INVALID) {
-        ret.stream = stream;
-        ret.nodeId = stream->nodeId();
-        ret.map = streamOptions;
-        m_streams.append(ret);
+    connect(stream, &AbstractPipeWireStream::closed, &loop, [&] {
+        failed = true;
         loop.quit();
-        connect(stream, &AbstractPipeWireStream::closed, this, [this](uint32_t nodeid) {
-            stopStreaming(nodeid);
-        });
-        Q_ASSERT(ret.isValid());
+    });
+    connect(stream, &QObject::destroyed, &loop, [&] {
+        failed = true;
         loop.quit();
-    } else {
-        connect(stream, &AbstractPipeWireStream::ready, &loop, [&](uint32_t nodeid) {
-            ret.stream = stream;
-            ret.nodeId = nodeid;
-            ret.map = streamOptions;
-            m_streams.append(ret);
-
-            connect(stream, &AbstractPipeWireStream::closed, this, [this, nodeid] {
-                stopStreaming(nodeid);
-            });
-            Q_ASSERT(ret.isValid());
-
-            loop.quit();
-        });
+    });
+    connect(stream, &AbstractPipeWireStream::ready, &loop, &QEventLoop::quit);
+    connect(&timeout, &QTimer::timeout, &loop, [&] {
+        qCWarning(SCREENCAST) << "Timed out waiting for a PipeWire node";
+        failed = true;
+        loop.quit();
+    });
+    timeout.start(3000);
+    if (stream->startScreencast() < 0)
+        failed = true;
+    // ready/failed may have been emitted synchronously in startScreencast.
+    if (!failed && guardedStream && stream->nodeId() == SPA_ID_INVALID)
+        loop.exec();
+    if (failed || !guardedStream || stream->nodeId() == SPA_ID_INVALID) {
+        if (guardedStream)
+            guardedStream->deleteLater();
+        return {};
     }
-    QTimer::singleShot(3000, &loop, [&loop, stream] {
-        qCWarning(SCREENCAST) << "no nodeIdChanged, failed to streaming";
-        stream->deleteLater();
-        loop.quit();
+    Stream result;
+    result.stream = stream;
+    result.nodeId = stream->nodeId();
+    result.map = streamOptions;
+    m_streams.append(result);
+    connect(stream, &AbstractPipeWireStream::closed, this, [this, nodeId = result.nodeId] {
+        stopStreaming(nodeId);
     });
-    loop.exec();
-    return ret;
+    return result;
 }
 
 void TreelandIntergration::stopStreaming(uint nodeId)
 {
     for (auto it = m_streams.begin(), itEnd = m_streams.end(); it != itEnd; ++it) {
         if (it->nodeId == nodeId) {
+            const Stream stream = *it;
             m_streams.erase(it);
-            it->close();
+            stream.close();
             break;
         }
     }
