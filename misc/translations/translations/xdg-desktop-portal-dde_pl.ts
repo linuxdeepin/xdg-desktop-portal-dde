@@ -34,19 +34,19 @@
     </message>
     <message>
         <source>Please select the screen or window you wish to share</source>
-        <translation>Wybierz ekran, który chcesz udostępnić</translation>
+        <translation>Wybierz ekran lub okno, które chcesz udostępnić</translation>
     </message>
     <message>
         <source>Screen</source>
-        <translation>Ekranu</translation>
+        <translation>Ekran</translation>
     </message>
     <message>
         <source>Window</source>
-        <translation>Okna</translation>
+        <translation>Okno</translation>
     </message>
     <message>
         <source>Allow restoring on future sessions</source>
-        <translation>Zezwól na przywracanie w przyszłych sesjach</translation>
+        <translation>Zapisz preferencję dla przyszłych sesji</translation>
     </message>
     <message>
         <source>Accept</source>
