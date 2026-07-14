@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021-2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -8,7 +8,7 @@
 
 #include <QApplication>
 #include <QDBusConnection>
-#include <QDBusContext>
+#include <QDBusError>
 #include <QDBusMessage>
 #include <QDBusMetaType>
 #include <QLoggingCategory>
@@ -72,6 +72,7 @@ SettingsPortal::SettingsPortal(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {
     qDBusRegisterMetaType<VariantMapMap>();
+    qDBusRegisterMetaType<AccentColorArray>();
     qApp->installEventFilter(this);
 }
 
@@ -83,42 +84,27 @@ bool SettingsPortal::eventFilter(QObject *obj, QEvent *event)
     return QDBusAbstractAdaptor::eventFilter(obj, event);
 }
 
-void SettingsPortal::Read(const QString &group, const QString &key)
+QDBusVariant SettingsPortal::Read(const QString &group,
+                                  const QString &key,
+                                  const QDBusMessage &message)
 {
     qCDebug(XdgDesktopDDESetting) << "Read: group " << group << " key " << key;
 
-    QObject *obj = QObject::parent();
-
-    if (!obj) {
-        qCWarning(XdgDesktopDDESetting) << "Failed to get dbus context";
-        return;
+    if (group == QLatin1String("org.freedesktop.appearance")) {
+        if (key == QLatin1String("color-scheme")) {
+            return readFdoColorScheme();
+        }
+        if (key == QLatin1String("accent-color")) {
+            return readAccentColor();
+        }
     }
 
-    void *ptr = obj->qt_metacast("QDBusContext");
-    QDBusContext *q_ptr = reinterpret_cast<QDBusContext *>(ptr);
-
-    if (!q_ptr) {
-        qCWarning(XdgDesktopDDESetting) << "Failed to get dbus context";
-        return;
-    }
-
-    QDBusMessage reply;
-    QDBusMessage message = q_ptr->message();
-
-    if (group != QLatin1String("org.freedesktop.appearance")) {
-        return;
-    }
-    if (key == QLatin1String("color-scheme")) {
-        reply = message.createReply(QVariant::fromValue(readFdoColorScheme()));
-        QDBusConnection::sessionBus().send(reply);
-        return;
-    }
-    if (key == QLatin1String("accent-color")) {
-        reply = message.createReply(QVariant::fromValue(readAccentColor()));
-        QDBusConnection::sessionBus().send(reply);
-        return;
-    }
-    return;
+    message.setDelayedReply(true);
+    const QDBusMessage reply = message.createErrorReply(
+            QDBusError::UnknownProperty,
+            QStringLiteral("Requested setting is not supported"));
+    QDBusConnection::sessionBus().send(reply);
+    return {};
 }
 
 void SettingsPortal::onPaletteChanged(const QPalette &palette)
@@ -131,26 +117,11 @@ void SettingsPortal::onPaletteChanged(const QPalette &palette)
                           readAccentColor());
 }
 
-void SettingsPortal::ReadAll(const QStringList &groups)
+VariantMapMap SettingsPortal::ReadAll(const QStringList &groups)
 {
     qCDebug(XdgDesktopDDESetting) << "ReadAll";
     qCDebug(XdgDesktopDDESetting) << "ReadAll called with parameters:";
     qCDebug(XdgDesktopDDESetting) << "    groups: " << groups;
-
-    QObject *obj = QObject::parent();
-
-    if (!obj) {
-        qCWarning(XdgDesktopDDESetting) << "Failed to get dbus context";
-        return;
-    }
-
-    void *ptr = obj->qt_metacast("QDBusContext");
-    QDBusContext *q_ptr = reinterpret_cast<QDBusContext *>(ptr);
-
-    if (!q_ptr) {
-        qCWarning(XdgDesktopDDESetting) << "Failed to get dbus context";
-        return;
-    }
 
     VariantMapMap result;
 
@@ -161,9 +132,7 @@ void SettingsPortal::ReadAll(const QStringList &groups)
 
         result.insert(QStringLiteral("org.freedesktop.appearance"), appearanceSettings);
     }
-    QDBusMessage message = q_ptr->message();
-    QDBusMessage reply = message.createReply(QVariant::fromValue(result));
-    QDBusConnection::sessionBus().send(reply);
+    return result;
 }
 
 QDBusVariant SettingsPortal::readFdoColorScheme() const

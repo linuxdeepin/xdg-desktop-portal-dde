@@ -15,8 +15,13 @@ if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif ()
 
 include(GNUInstallDirs)
+include(CTest)
 
 add_subdirectory(src)
+
+if (BUILD_TESTING)
+    add_subdirectory(tests)
+endif ()
 
 configure_file(
     misc/xdg-desktop-portal-dde.service.in
