@@ -1,3 +1,9 @@
+xdg-desktop-portal-dde (1.1.8) unstable; urgency=medium
+
+  * fix(settings): correct D-Bus replies and signatures
+
+ -- zhangkun <zhangkun2@uniontech.com>  Thu, 16 Jul 2026 21:46:48 +0800
+
 xdg-desktop-portal-dde (1.1.7) unstable; urgency=medium
 
   * chore: Sync by
