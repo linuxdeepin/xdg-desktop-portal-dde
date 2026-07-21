@@ -13,6 +13,7 @@ class ScreenshotPortal : public QDBusAbstractAdaptor
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Screenshot")
+    Q_PROPERTY(uint version READ version CONSTANT)
 
 public:
     struct ColorRGB
@@ -23,6 +24,8 @@ public:
     };
     explicit ScreenshotPortal(QObject *parent);
     ~ScreenshotPortal() = default;
+
+    uint version() const { return 2; }
 
 public slots:
     uint PickColor(const QDBusObjectPath &handle,

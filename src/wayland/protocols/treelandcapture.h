@@ -19,13 +19,16 @@ public:
         , m_shmBuffer(nullptr)
         , m_pendingShmBuffer(nullptr)
         , m_flags(0)
+        , m_copyRequested(false)
+        , m_terminal(false)
     { }
 
     ~TreeLandCaptureFrame() override
     {
+        if (isInitialized())
+            destroy();
         delete m_shmBuffer;
         delete m_pendingShmBuffer;
-        destroy();
     }
 
     inline uint flags() const { return m_flags; }
@@ -36,6 +39,7 @@ Q_SIGNALS:
 
 protected:
     void treeland_capture_frame_v1_buffer(uint32_t format, uint32_t width, uint32_t height, uint32_t stride) override;
+    void treeland_capture_frame_v1_buffer_done() override;
     void treeland_capture_frame_v1_flags(uint32_t flags) override;
     void treeland_capture_frame_v1_ready() override;
     void treeland_capture_frame_v1_failed() override;
@@ -44,6 +48,8 @@ private:
     QtWaylandClient::QWaylandShmBuffer *m_shmBuffer;
     QtWaylandClient::QWaylandShmBuffer *m_pendingShmBuffer;
     uint m_flags;
+    bool m_copyRequested;
+    bool m_terminal;
 };
 
 class TreeLandCaptureContext : public QObject, public QtWayland::treeland_capture_context_v1
@@ -54,7 +60,8 @@ public:
     ~TreeLandCaptureContext() override
     {
         releaseCaptureFrame();
-        destroy();
+        if (isInitialized())
+            destroy();
     }
 
     inline QRect captureRegion() const { return m_captureRegion; }
@@ -75,7 +82,8 @@ protected:
 private:
     QRect m_captureRegion;
     TreeLandCaptureFrame *m_captureFrame;
-    QtWayland::treeland_capture_context_v1::source_type m_sourceType;
+    QtWayland::treeland_capture_context_v1::source_type m_sourceType =
+            static_cast<QtWayland::treeland_capture_context_v1::source_type>(0);
 };
 
 class TreeLandCaptureManager;
@@ -93,7 +101,8 @@ public:
 
     ~TreeLandCaptureManager() override
     {
-        destroy();
+        if (isInitialized())
+            destroy();
     }
 
     QPointer<TreeLandCaptureContext> getContext();
