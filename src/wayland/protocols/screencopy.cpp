@@ -9,6 +9,13 @@ ScreenCopyFrame::ScreenCopyFrame(struct ::zwlr_screencopy_frame_v1 *object)
     , QtWayland::zwlr_screencopy_frame_v1(object)
 { }
 
+ScreenCopyFrame::~ScreenCopyFrame()
+{
+    QObject::disconnect(this, nullptr, nullptr, nullptr);
+    if (isInitialized())
+        destroy();
+}
+
 void ScreenCopyFrame::zwlr_screencopy_frame_v1_buffer(uint32_t format,
                                                       uint32_t width,
                                                       uint32_t height,
