@@ -1,3 +1,9 @@
+xdg-desktop-portal-dde (1.1.9) unstable; urgency=medium
+
+  * fix(cmake): fix undefined reference errors in wayland module
+
+ -- zhangkun <zhangkun2@uniontech.com>  Thu, 23 Jul 2026 21:49:55 +0800
+
 xdg-desktop-portal-dde (1.1.8) unstable; urgency=medium
 
   * fix(settings): correct D-Bus replies and signatures
