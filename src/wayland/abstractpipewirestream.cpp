@@ -3,232 +3,272 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "abstractpipewirestream.h"
+
 #include "loggings.h"
-#include "protocols/common.h"
 #include "pipewirecore.h"
 #include "pipewireutils.h"
+#include "sealedmemfd.h"
 
-#include <pipewire/pipewire.h>
-#include <pipewire/stream.h>
-#include <spa/buffer/meta.h>
-#include <spa/utils/result.h>
-#include <spa/param/props.h>
-#include <spa/param/format-utils.h>
-#include <spa/param/video/format-utils.h>
-#include <spa/pod/dynamic.h>
-#include <spa/param/video/format.h>
-#include <spa/pod/builder.h>
-
-#include <unistd.h>
-#include <assert.h>
 #include <drm_fourcc.h>
 #include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/param.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
+#include <pipewire/stream.h>
+#include <spa/buffer/meta.h>
+#include <spa/param/format-utils.h>
+#include <spa/param/props.h>
+#include <spa/param/video/format.h>
+#include <spa/pod/builder.h>
+#include <spa/utils/result.h>
+#include <xf86drm.h>
 
-#include <gbm.h>
+#include <QVarLengthArray>
 
-#include <QScreen>
-#include <QGuiApplication>
+#include <algorithm>
+#include <climits>
+#include <cstddef>
+#include <cstring>
+#include <iterator>
+#include <limits>
+#include <unistd.h>
 
-#define DAMAGE_REGION_COUNT 16
+namespace {
 
-static void randname(char *buf) {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    long r = ts.tv_nsec;
-    for (int i = 0; i < 6; ++i) {
-        assert(buf[i] == 'X');
-        buf[i] = 'A'+(r&15)+(r&16)*2;
-        r >>= 5;
-    }
-}
+constexpr uint32_t s_defaultBufferCount = 3;
+constexpr uint32_t s_minimumBufferCount = 2;
+constexpr uint32_t s_maximumBufferCount = 4;
+constexpr uint32_t s_bufferAlignment = 16;
+constexpr uint64_t s_nanosecondsPerSecond = 1000000000ULL;
+constexpr qsizetype s_maxShmFormats = 64;
+constexpr qsizetype s_maxDmaBufFormats = 64;
+constexpr qsizetype s_maxDmaBufModifiersPerFormat = 256;
 
-static int anonymous_shm_open(void) {
-    char name[] = "/xdpw-shm-XXXXXX";
-    int retries = 100;
-
-    do {
-        randname(name + strlen(name) - 6);
-
-        --retries;
-        // shm_open guarantees that O_CLOEXEC is set
-        int fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
-        if (fd >= 0) {
-            shm_unlink(name);
-            return fd;
-        }
-    } while (retries > 0 && errno == EEXIST);
-
-    return -1;
-}
-
-static void handleStreamDestroy(void *data) {
+void handleStreamDestroy(void *data)
+{
     Q_UNUSED(data);
-    qCDebug(SCREENCAST()) << "handleStreamDestroy";
+    qCDebug(SCREENCAST) << "xdpw: PipeWire stream destroyed";
 }
 
-static void handleStreamStateChanged(void *data,
-                                     enum pw_stream_state old,
-                                     enum pw_stream_state state,
-                                     const char *error) {
-    qCDebug(SCREENCAST, "pipewire: stream state changed to \"%s\"",
-            pw_stream_state_as_string(state));
-    AbstractPipeWireStream *stream = static_cast<AbstractPipeWireStream *>(data);
-    stream->onStreamStateChanged(old, state, error);
+void handleStreamStateChanged(void *data,
+                              pw_stream_state oldState,
+                              pw_stream_state state,
+                              const char *error)
+{
+    auto *stream = static_cast<AbstractPipeWireStream *>(data);
+    stream->onStreamStateChanged(oldState, state, error);
 }
 
-static void handleStreamParamChanged(void *data, uint32_t id,
-                                     const struct spa_pod *param) {
-    qCDebug(SCREENCAST, "pipewire: stream parameters changed");
-    AbstractPipeWireStream *stream = static_cast<AbstractPipeWireStream *>(data);
+void handleStreamParamChanged(void *data, uint32_t id, const spa_pod *param)
+{
+    auto *stream = static_cast<AbstractPipeWireStream *>(data);
     stream->onStreamParamChanged(id, param);
 }
 
-static void handleStreamAddBuffer(void *data, struct pw_buffer *buffer) {
-    qCDebug(SCREENCAST, "pipewire: add buffer event handle");
-    AbstractPipeWireStream *stream = static_cast<AbstractPipeWireStream *>(data);
+void handleStreamAddBuffer(void *data, pw_buffer *buffer)
+{
+    auto *stream = static_cast<AbstractPipeWireStream *>(data);
     stream->onStreamAddBuffer(buffer);
 }
 
-static void handleStreamRemoveBuffer(void *data, struct pw_buffer *buffer) {
-    qCDebug(SCREENCAST, "pipewire: remove buffer event handle");
-    AbstractPipeWireStream *stream = static_cast<AbstractPipeWireStream *>(data);
+void handleStreamRemoveBuffer(void *data, pw_buffer *buffer)
+{
+    auto *stream = static_cast<AbstractPipeWireStream *>(data);
     stream->onStreamRemoveBuffer(buffer);
 }
 
-static void handleStreamOnProcess(void *data) {
-    qCDebug(SCREENCAST, "pipewire: on process event handle");
-    AbstractPipeWireStream *stream = static_cast<AbstractPipeWireStream *>(data);
+void handleStreamProcess(void *data)
+{
+    auto *stream = static_cast<AbstractPipeWireStream *>(data);
     stream->onStreamProcess();
 }
 
-static const struct pw_stream_events pwr_stream_events = {
-    .version = PW_VERSION_STREAM_EVENTS,
-    .destroy = handleStreamDestroy,
-    .state_changed = handleStreamStateChanged,
-    .param_changed = handleStreamParamChanged,
-    .add_buffer = handleStreamAddBuffer,
-    .remove_buffer = handleStreamRemoveBuffer,
-    .process = handleStreamOnProcess,
-};
+const pw_stream_events s_streamEvents = [] {
+    pw_stream_events events = {};
+    events.version = PW_VERSION_STREAM_EVENTS;
+    events.destroy = handleStreamDestroy;
+    events.state_changed = handleStreamStateChanged;
+    events.param_changed = handleStreamParamChanged;
+    events.add_buffer = handleStreamAddBuffer;
+    events.remove_buffer = handleStreamRemoveBuffer;
+    events.process = handleStreamProcess;
+    return events;
+}();
 
-static struct spa_pod *buildFormat(struct spa_pod_builder *b, enum spa_video_format format,
-                                    uint32_t width, uint32_t height, uint32_t framerate,
-                                    uint64_t *modifiers, int modifier_count) {
-    struct spa_pod_frame f[2];
-    int i, c;
-
-    enum spa_video_format format_without_alpha = PipeWireutils::pipewireFormatStripAlpha(format);
-
-    spa_pod_builder_push_object(b, &f[0], SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
-    spa_pod_builder_add(b, SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video), 0);
-    spa_pod_builder_add(b, SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw), 0);
-    /* format */
-    if (modifier_count > 0 || format_without_alpha == SPA_VIDEO_FORMAT_UNKNOWN) {
-        // modifiers are defined only in combinations with their format
-        // we should not announce the format without alpha
-        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format, SPA_POD_Id(format), 0);
-    } else {
-        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format,
-                            SPA_POD_CHOICE_ENUM_Id(3, format, format, format_without_alpha), 0);
-    }
-    /* modifiers */
-    if (modifier_count > 0) {
-        // build an enumeration of modifiers
-        spa_pod_builder_prop(b, SPA_FORMAT_VIDEO_modifier, SPA_POD_PROP_FLAG_MANDATORY | SPA_POD_PROP_FLAG_DONT_FIXATE);
-        spa_pod_builder_push_choice(b, &f[1], SPA_CHOICE_Enum, 0);
-        // modifiers from the array
-        for (i = 0, c = 0; i < modifier_count; i++) {
-            spa_pod_builder_long(b, modifiers[i]);
-            if (c++ == 0)
-                spa_pod_builder_long(b, modifiers[i]);
-        }
-        spa_pod_builder_pop(b, &f[1]);
-    }
-    struct spa_rectangle rect = SPA_RECTANGLE(width, height);
-    spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size,
-                        SPA_POD_Rectangle(&rect), 0);
-    struct spa_fraction fr0 = SPA_FRACTION(0, 1);
-    spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate,
-                        SPA_POD_Fraction(&fr0), 0);
-
-    struct spa_fraction fr1 = SPA_FRACTION(1, 1);
-    struct spa_fraction fr_fps = SPA_FRACTION(framerate, 1);
-    spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate,
-                        SPA_POD_CHOICE_RANGE_Fraction(&fr_fps, &fr1, &fr_fps), 0);
-    return static_cast<struct spa_pod *>(spa_pod_builder_pop(b, &f[0]));
-}
-
-static void addPod(struct wl_array *params, const struct spa_pod *pod) {
-    if (pod) {
-        const struct spa_pod **entry =
-                static_cast<const struct spa_pod **>(wl_array_add(params, sizeof(**entry)));
-        if (entry) {
-            *entry = pod;
-        }
-    }
-}
-
-static struct spa_pod *fixateFormat(struct spa_pod_builder *b, enum spa_video_format format,
-                                     uint32_t width, uint32_t height, uint32_t framerate, uint64_t *modifier)
+std::optional<QByteArray> buildFormatPod(spa_video_format format,
+                                         uint32_t width,
+                                         uint32_t height,
+                                         uint32_t maximumFramerate,
+                                         const QVector<uint64_t> &modifiers,
+                                         std::optional<uint64_t> fixedModifier = std::nullopt)
 {
-    struct spa_pod_frame f[1];
-
-    enum spa_video_format format_without_alpha = PipeWireutils::pipewireFormatStripAlpha(format);
-
-    spa_pod_builder_push_object(b, &f[0], SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
-    spa_pod_builder_add(b, SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video), 0);
-    spa_pod_builder_add(b, SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw), 0);
-    /* format */
-    if (modifier || format_without_alpha == SPA_VIDEO_FORMAT_UNKNOWN) {
-        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format, SPA_POD_Id(format), 0);
-    } else {
-        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format,
-                            SPA_POD_CHOICE_ENUM_Id(3, format, format, format_without_alpha), 0);
+    if (modifiers.size() > s_maxDmaBufModifiersPerFormat) {
+        return std::nullopt;
     }
-    /* modifiers */
-    if (modifier) {
-        // implicit modifier
-        spa_pod_builder_prop(b, SPA_FORMAT_VIDEO_modifier, SPA_POD_PROP_FLAG_MANDATORY);
-        spa_pod_builder_long(b, *modifier);
+
+    constexpr int baseStorageSize = 2048;
+    constexpr int bytesPerModifier = 32;
+    if (modifiers.size() > (INT_MAX - baseStorageSize) / bytesPerModifier) {
+        return std::nullopt;
     }
-    struct spa_rectangle rect = SPA_RECTANGLE(width, height);
-    spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size,
-                        SPA_POD_Rectangle(&rect), 0);
 
-    struct spa_fraction fr0 = SPA_FRACTION(0, 1);
-    spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate,
-                        SPA_POD_Fraction(&fr0), 0);
+    QByteArray storage(baseStorageSize
+                               + static_cast<int>(modifiers.size()) * bytesPerModifier,
+                       '\0');
+    spa_pod_builder builder = SPA_POD_BUILDER_INIT(
+            storage.data(), static_cast<uint32_t>(storage.size()));
+    spa_pod_frame frame;
+    spa_pod_builder_push_object(&builder, &frame, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
+    spa_pod_builder_add(&builder,
+                        SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video),
+                        SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw),
+                        SPA_FORMAT_VIDEO_format, SPA_POD_Id(format),
+                        0);
 
-    struct spa_fraction fr1 = SPA_FRACTION(1, 1);
-    struct spa_fraction fr_fps = SPA_FRACTION(framerate, 1);
-    spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate,
-                        SPA_POD_CHOICE_RANGE_Fraction(&fr_fps, &fr1, &fr_fps), 0);
-    return static_cast<struct spa_pod *>(spa_pod_builder_pop(b, &f[0]));
+    const spa_rectangle size = SPA_RECTANGLE(width, height);
+    const spa_fraction variableFramerate = SPA_FRACTION(0, 1);
+    const spa_fraction minimumFramerate = SPA_FRACTION(1, 1);
+    const spa_fraction maximum = SPA_FRACTION(maximumFramerate, 1);
+    spa_pod_builder_add(&builder,
+                        SPA_FORMAT_VIDEO_size, SPA_POD_Rectangle(&size),
+                        SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&variableFramerate),
+                        SPA_FORMAT_VIDEO_maxFramerate,
+                        SPA_POD_CHOICE_RANGE_Fraction(&maximum, &minimumFramerate, &maximum),
+                        0);
+
+    if (fixedModifier) {
+        spa_pod_builder_prop(&builder,
+                             SPA_FORMAT_VIDEO_modifier,
+                             SPA_POD_PROP_FLAG_MANDATORY);
+        spa_pod_builder_long(&builder, static_cast<int64_t>(*fixedModifier));
+    } else if (!modifiers.isEmpty()) {
+        spa_pod_frame modifierFrame;
+        spa_pod_builder_prop(&builder,
+                             SPA_FORMAT_VIDEO_modifier,
+                             SPA_POD_PROP_FLAG_MANDATORY
+                                     | SPA_POD_PROP_FLAG_DONT_FIXATE);
+        spa_pod_builder_push_choice(&builder, &modifierFrame, SPA_CHOICE_Enum, 0);
+        spa_pod_builder_long(&builder, static_cast<int64_t>(modifiers.first()));
+        for (uint64_t modifier : modifiers) {
+            spa_pod_builder_long(&builder, static_cast<int64_t>(modifier));
+        }
+        spa_pod_builder_pop(&builder, &modifierFrame);
+    }
+
+    spa_pod *pod = static_cast<spa_pod *>(spa_pod_builder_pop(&builder, &frame));
+    if (!pod || spa_pod_builder_corrupted(&builder)
+        || SPA_POD_SIZE(pod) > static_cast<uint64_t>(INT_MAX)) {
+        return std::nullopt;
+    }
+
+    storage.resize(static_cast<int>(SPA_POD_SIZE(pod)));
+    return storage;
 }
 
-static struct spa_pod *buildBuffer(struct spa_pod_builder *b, uint32_t blocks, uint32_t size,
-                                    uint32_t stride, uint32_t datatype) {
-    assert(blocks > 0);
-    assert(datatype > 0);
-    struct spa_pod_frame f[1];
-
-    spa_pod_builder_push_object(b, &f[0], SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers);
-    spa_pod_builder_add(b, SPA_PARAM_BUFFERS_buffers,
-                        SPA_POD_CHOICE_RANGE_Int(XDPW_PWR_BUFFERS, XDPW_PWR_BUFFERS_MIN, 32), 0);
-    spa_pod_builder_add(b, SPA_PARAM_BUFFERS_blocks, SPA_POD_Int(blocks), 0);
+spa_pod *buildBufferParam(spa_pod_builder *builder,
+                          uint32_t blocks,
+                          uint32_t dataType,
+                          uint32_t size = 0,
+                          uint32_t stride = 0)
+{
+    spa_pod_frame frame;
+    spa_pod_builder_push_object(builder, &frame, SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers);
+    spa_pod_builder_add(builder,
+                        SPA_PARAM_BUFFERS_buffers,
+                        SPA_POD_CHOICE_RANGE_Int(s_defaultBufferCount,
+                                                 s_minimumBufferCount,
+                                                 s_maximumBufferCount),
+                        SPA_PARAM_BUFFERS_blocks, SPA_POD_Int(blocks),
+                        SPA_PARAM_BUFFERS_align, SPA_POD_Int(s_bufferAlignment),
+                        SPA_PARAM_BUFFERS_dataType,
+                        SPA_POD_CHOICE_FLAGS_Int(dataType),
+                        0);
     if (size > 0) {
-        spa_pod_builder_add(b, SPA_PARAM_BUFFERS_size, SPA_POD_Int(size), 0);
+        spa_pod_builder_add(builder,
+                            SPA_PARAM_BUFFERS_size, SPA_POD_Int(size),
+                            SPA_PARAM_BUFFERS_stride, SPA_POD_Int(stride),
+                            0);
     }
-    if (stride > 0) {
-        spa_pod_builder_add(b, SPA_PARAM_BUFFERS_stride, SPA_POD_Int(stride), 0);
+    return static_cast<spa_pod *>(spa_pod_builder_pop(builder, &frame));
+}
+
+std::optional<QVector<uint64_t>> modifierValues(const spa_pod_prop *property)
+{
+    if (!property) {
+        return std::nullopt;
     }
-    spa_pod_builder_add(b, SPA_PARAM_BUFFERS_align, SPA_POD_Int(XDPW_PWR_ALIGN), 0);
-    spa_pod_builder_add(b, SPA_PARAM_BUFFERS_dataType, SPA_POD_CHOICE_FLAGS_Int(datatype), 0);
-    return static_cast<struct spa_pod *>(spa_pod_builder_pop(b, &f[0]));
+
+    QVector<uint64_t> result;
+    const spa_pod *value = &property->value;
+    if (SPA_POD_CHECK(value, SPA_TYPE_Long, sizeof(int64_t))) {
+        int64_t modifier = 0;
+        std::memcpy(&modifier, SPA_POD_BODY_CONST(value), sizeof(modifier));
+        result.append(static_cast<uint64_t>(modifier));
+        return result;
+    }
+
+    if (!SPA_POD_CHECK(value, SPA_TYPE_Choice, sizeof(spa_pod_choice_body))
+        || SPA_POD_CHOICE_VALUE_TYPE(value) != SPA_TYPE_Long
+        || SPA_POD_CHOICE_VALUE_SIZE(value) != sizeof(int64_t)) {
+        return std::nullopt;
+    }
+
+    const size_t valueCount = SPA_POD_CHOICE_N_VALUES(value);
+    if (valueCount == 0
+        || valueCount > static_cast<size_t>(s_maxDmaBufModifiersPerFormat + 1)) {
+        return std::nullopt;
+    }
+
+    const auto *values = static_cast<const int64_t *>(SPA_POD_CHOICE_VALUES(value));
+    result.reserve(static_cast<qsizetype>(valueCount));
+    for (size_t index = 0; index < valueCount; ++index) {
+        const uint64_t modifier = static_cast<uint64_t>(values[index]);
+        if (!result.contains(modifier)) {
+            result.append(modifier);
+        }
+    }
+    return result;
+}
+
+QString frameFailureReason(uint32_t reason)
+{
+    switch (reason) {
+    case EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_UNKNOWN:
+        return QStringLiteral("unknown runtime error");
+    case EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_BUFFER_CONSTRAINTS:
+        return QStringLiteral("buffer constraints changed");
+    case EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_STOPPED:
+        return QStringLiteral("capture session stopped");
+    default:
+        return QStringLiteral("undefined failure reason %1").arg(reason);
+    }
+}
+
+QVector<spa_video_format> compatibleShmSpaFormats(spa_video_format format)
+{
+    if (format == SPA_VIDEO_FORMAT_UNKNOWN) {
+        return {};
+    }
+
+    QVector<spa_video_format> result{format};
+    const spa_video_format withoutAlpha =
+            PipeWireutils::pipewireFormatStripAlpha(format);
+    if (withoutAlpha != SPA_VIDEO_FORMAT_UNKNOWN
+        && withoutAlpha != format) {
+        result.append(withoutAlpha);
+    }
+    return result;
+}
+
+}
+
+AbstractPipeWireStream::DmaBufDevice::~DmaBufDevice()
+{
+    if (gbm) {
+        gbm_device_destroy(gbm);
+        gbm = nullptr;
+    }
+    if (fd >= 0) {
+        close(fd);
+        fd = -1;
+    }
 }
 
 AbstractPipeWireStream::AbstractPipeWireStream(QPointer<ScreenCastContext> context,
@@ -236,825 +276,1418 @@ AbstractPipeWireStream::AbstractPipeWireStream(QPointer<ScreenCastContext> conte
                                                QObject *parent)
     : QObject(parent)
     , m_context(context)
-    , m_mode(mode)
-    , m_timer(new QTimer(this))
+    , m_cursorMode(mode)
 {
-    m_timer->setSingleShot(true);
-    connect(m_timer, &QTimer::timeout, this, &AbstractPipeWireStream::handleTimeOut);
+    if (m_context) {
+        m_pipeWireCore = m_context->pipeWireCore();
+    }
+    if (m_pipeWireCore) {
+        connect(m_pipeWireCore.get(),
+                &PipeWireCore::pipewireFailed,
+                this,
+                [this](const QString &message) {
+            failStream(QStringLiteral("PipeWire core connection failed: %1")
+                               .arg(message.isEmpty()
+                                            ? QStringLiteral("connection closed")
+                                            : message));
+        });
+    }
 }
 
 AbstractPipeWireStream::~AbstractPipeWireStream()
 {
-    qCDebug(SCREENCAST) << "~PipeWireStream";
-    m_timer->stop();
-    destroyImageCaptureFrame();
-    if (m_session) {
-        m_session->destroy();
-        delete m_session;
-    }
-
-    if (m_source) {
-        ext_image_capture_source_v1_destroy(m_source);
-    }
-    destroyStream();
-    pipewireBufferConstraintsFinish(&m_currentConstraints);
-    pipewireBufferConstraintsFinish(&m_pendingConstraints);
+    teardown();
 }
 
-void AbstractPipeWireStream::onStreamStateChanged(pw_stream_state old, pw_stream_state state, const char *error)
+void AbstractPipeWireStream::teardown()
 {
+    m_state = LifecycleState::Stopping;
+    cancelTransaction("stream teardown");
+    destroyStream();
+
+    if (m_session) {
+        QObject::disconnect(m_session, nullptr, this, nullptr);
+        m_session->destroy();
+        m_session = nullptr;
+    }
+    if (m_source) {
+        ext_image_capture_source_v1_destroy(m_source);
+        m_source = nullptr;
+    }
+
+    for (PipeWireSourceBuffer *buffer : std::as_const(m_buffers)) {
+        destroyPipeWireSourceBuffer(buffer);
+    }
+    m_buffers.clear();
+    m_negotiatedFormat.reset();
+    m_pendingDmaBufSelection.reset();
+    m_usableDmaBufFormats.clear();
+    m_dmaBufDevice.reset();
+}
+
+bool AbstractPipeWireStream::initializeCaptureSession(ext_image_capture_source_v1 *source)
+{
+    if (!source) {
+        qCWarning(SCREENCAST) << "xdpw: cannot initialize a null image-copy source";
+        return false;
+    }
+
+    m_source = source;
+    if (!m_context || !m_context->m_imageCopyCaptureManager
+        || !m_context->m_imageCopyCaptureManager->isActive()) {
+        qCWarning(SCREENCAST) << "xdpw: cannot initialize image-copy session";
+        return false;
+    }
+
+    const uint32_t options = m_cursorMode == PortalCommon::Embedded
+            ? EXT_IMAGE_COPY_CAPTURE_MANAGER_V1_OPTIONS_PAINT_CURSORS
+            : 0;
+    ext_image_copy_capture_session_v1 *sessionObject =
+            m_context->m_imageCopyCaptureManager->create_session(m_source, options);
+    if (!sessionObject) {
+        qCWarning(SCREENCAST) << "xdpw: compositor did not create an image-copy session";
+        return false;
+    }
+
+    m_session = new ImageCopyCaptureSession(sessionObject, this);
+    connect(m_session, &ImageCopyCaptureSession::bufferSizeChanged,
+            this, &AbstractPipeWireStream::handleCaptureSessionBufferSizeChanged);
+    connect(m_session, &ImageCopyCaptureSession::shmFormatChanged,
+            this, &AbstractPipeWireStream::handleCaptureSessionShmFormatChanged);
+    connect(m_session, &ImageCopyCaptureSession::dmabufDeviceChanged,
+            this, &AbstractPipeWireStream::handleCaptureSessionDmaBufDeviceChanged);
+    connect(m_session, &ImageCopyCaptureSession::dmabufFormatChanged,
+            this, &AbstractPipeWireStream::handleCaptureSessionDmaBufFormatChanged);
+    connect(m_session, &ImageCopyCaptureSession::done,
+            this, &AbstractPipeWireStream::handleCaptureSessionDone);
+    connect(m_session, &ImageCopyCaptureSession::stopped,
+            this, &AbstractPipeWireStream::handleCaptureSessionStopped);
+
+    qCInfo(SCREENCAST) << "xdpw: image-copy session created; waiting for initial constraints";
+    return true;
+}
+
+void AbstractPipeWireStream::setMaxFramerate(uint32_t framerate)
+{
+    m_maxFramerate = std::clamp(framerate, 1U, 60U);
+}
+
+void AbstractPipeWireStream::closeForSourceLoss(const QString &reason)
+{
+    failStream(reason);
+}
+
+void AbstractPipeWireStream::onStreamStateChanged(pw_stream_state oldState,
+                                                  pw_stream_state state,
+                                                  const char *error)
+{
+    qCInfo(SCREENCAST) << "xdpw: PipeWire state"
+                       << pw_stream_state_as_string(oldState)
+                       << "->" << pw_stream_state_as_string(state)
+                       << "transaction" << (m_transaction ? m_transaction->id : 0);
+
+    // pw_stream_destroy() synchronously reports PAUSED and UNCONNECTED. Once
+    // teardown or failure has started, those transport state changes must not
+    // overwrite the terminal lifecycle state or emit a second failure.
+    if (isTerminalState()) {
+        qCDebug(SCREENCAST) << "xdpw: ignoring PipeWire state change in terminal state";
+        return;
+    }
+
     switch (state) {
     case PW_STREAM_STATE_ERROR:
-        qCCritical(SCREENCAST) << "stream error: " << error;
+        failStream(QStringLiteral("PipeWire stream error: %1")
+                           .arg(QString::fromUtf8(error ? error : "unknown error")));
         break;
     case PW_STREAM_STATE_STREAMING:
-        m_isStreaming = true;
+        m_state = LifecycleState::Streaming;
         break;
     case PW_STREAM_STATE_PAUSED:
-        if (m_nodeId == SPA_ID_INVALID && m_stream) {
-            m_nodeId = pw_stream_get_node_id(m_stream);
-            Q_EMIT ready(m_nodeId);
-            qCDebug(SCREENCAST()) << "create node id" << nodeId();
+        m_state = LifecycleState::Paused;
+        if (!m_readyEmitted && m_stream) {
+            const uint32_t nodeId = pw_stream_get_node_id(m_stream);
+            if (nodeId != SPA_ID_INVALID) {
+                m_nodeId = nodeId;
+                m_readyEmitted = true;
+                qCInfo(SCREENCAST) << "xdpw: PipeWire node ready" << m_nodeId;
+                Q_EMIT ready(m_nodeId);
+            }
         }
-        if (old == PW_STREAM_STATE_STREAMING){
-            enqueueBuffer();
-        }
-
-        m_isStreaming = false;
-        break;
-    case PW_STREAM_STATE_CONNECTING:
+        // PAUSED is a scheduling state. It never transfers ownership of an
+        // in-flight image-copy buffer back to PipeWire.
         break;
     case PW_STREAM_STATE_UNCONNECTED:
-        Q_EMIT closed(nodeId());
+        if (!m_failureEmitted) {
+            failStream(QStringLiteral("PipeWire stream disconnected"));
+        }
+        break;
+    case PW_STREAM_STATE_CONNECTING:
         break;
     }
 }
 
 void AbstractPipeWireStream::onStreamParamChanged(uint32_t id, const spa_pod *param)
 {
-    uint8_t params_buffer[3 * 1024];
-    struct spa_pod_dynamic_builder builder;
-    struct wl_array params;
-    uint32_t blocks;
-    uint32_t data_type;
-
-    if (!param || id != SPA_PARAM_Format) {
+    if (!param || id != SPA_PARAM_Format || isTerminalState()) {
         return;
     }
-    wl_array_init(&params);
-    spa_pod_dynamic_builder_init(&builder, params_buffer, sizeof(params_buffer), 2048);
-    spa_format_video_raw_parse(param, &m_pipewireVideoInfo);
 
-    m_framerate = (uint32_t)(m_pipewireVideoInfo.max_framerate.num / m_pipewireVideoInfo.max_framerate.denom);
-    struct gbm_device *gbm = m_currentConstraints.gbm;
-    const struct spa_pod_prop *prop_modifier = spa_pod_find_prop(param, nullptr, SPA_FORMAT_VIDEO_modifier);
-    if (prop_modifier) {
-        m_bufferType = PortalCommon::DMABUF;
-        data_type = 1<<SPA_DATA_DmaBuf;
-        uint32_t fourcc = PipeWireutils::drmFourccFromPipewireFormat(m_pipewireVideoInfo.format);
-        assert(hasDrmFourcc(fourcc));
-        if ((prop_modifier->flags & SPA_POD_PROP_FLAG_DONT_FIXATE) > 0) {
-            const struct spa_pod *pod_modifier = &prop_modifier->value;
+    spa_video_info_raw videoInfo = {};
+    const int result = spa_format_video_raw_parse(param, &videoInfo);
+    if (result < 0) {
+        failStream(QStringLiteral("PipeWire selected an invalid video format"));
+        return;
+    }
 
-            uint32_t n_modifiers = SPA_POD_CHOICE_N_VALUES(pod_modifier) - 1;
-            uint64_t *modifiers = static_cast<uint64_t *>(SPA_POD_CHOICE_VALUES(pod_modifier));
-            modifiers++;
-            uint32_t flags = GBM_BO_USE_RENDERING;
-            uint64_t modifier;
-            uint32_t n_params;
+    if (videoInfo.size.width != m_activeConstraints.width
+        || videoInfo.size.height != m_activeConstraints.height) {
+        // EnumFormat updates and the resulting Format callbacks are
+        // asynchronous. A consumer can also trigger modifier renegotiation at
+        // the same time as the compositor publishes a new capture size. In
+        // that case PipeWire may still deliver the selection from the previous
+        // EnumFormat after the newer constraints became active.
+        //
+        // Never allocate against that mixed state: reject the obsolete
+        // selection by publishing the current exact-size formats again. This
+        // is the normal PipeWire renegotiation response and keeps the latest
+        // compositor constraints authoritative.
+        qCInfo(SCREENCAST)
+                << "xdpw: rejecting obsolete PipeWire frame size"
+                << videoInfo.size.width << "x" << videoInfo.size.height
+                << "while constraints generation"
+                << m_activeConstraints.generation << "requires"
+                << m_activeConstraints.width << "x" << m_activeConstraints.height;
 
-            struct gbm_bo *bo = gbm_bo_create_with_modifiers2(gbm,
-                                                              m_currentConstraints.width,
-                                                              m_currentConstraints.height,
-                                                              fourcc, modifiers, n_modifiers, flags);
-            if (bo) {
-                modifier = gbm_bo_get_modifier(bo);
-                gbm_bo_destroy(bo);
-                goto fixate_format;
+        m_negotiatedFormat.reset();
+        if (!m_reconfiguringBuffers) {
+            if (!beginBufferReconfiguration(
+                        "PipeWire selected an obsolete frame size")) {
+                failStream(QStringLiteral(
+                        "Failed to re-offer current capture dimensions"));
             }
+        } else if (!updateStreamFormats()) {
+            failStream(QStringLiteral(
+                    "Failed to re-offer current capture dimensions"));
+        }
+        return;
+    }
 
-            qCInfo(SCREENCAST, "pipewire: unable to allocate a dmabuf with modifiers. Falling back to the old api");
-            for (uint32_t i = 0; i < n_modifiers; i++) {
-                switch (modifiers[i]) {
-                case DRM_FORMAT_MOD_INVALID:
-                    flags = m_forceModLinear ?
-                            GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR : GBM_BO_USE_RENDERING;
-                    break;
-                case DRM_FORMAT_MOD_LINEAR:
-                    flags = GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR;
-                    break;
-                default:
-                    continue;
-                }
-                bo = gbm_bo_create(gbm,
-                                   m_currentConstraints.width,
-                                   m_currentConstraints.height,
-                                   fourcc, flags);
-                if (bo) {
-                    modifier = gbm_bo_get_modifier(bo);
-                    gbm_bo_destroy(bo);
-                    goto fixate_format;
-                }
-            }
-
-            qCWarning(SCREENCAST, "pipewire: unable to allocate a dmabuf. Falling back to shm");
-            m_avoidDMAbufs = true;
-
-            buildFormats(&builder.b, &params);
-            pw_stream_update_params(m_stream,
-                                    static_cast<const struct spa_pod **>(params.data),
-                                    params.size / sizeof(struct spa_pod *));
-            spa_pod_dynamic_builder_clean(&builder);
-            wl_array_release(&params);
-            return;
-
-        fixate_format:
-            addPod(&params, fixateFormat(&builder.b,
-                                           m_pipewireVideoInfo.format,
-                                           m_currentConstraints.width,
-                                           m_currentConstraints.height,
-                                           m_framerate,
-                                           &modifier));
-
-            buildFormats(&builder.b, &params);
-
-            pw_stream_update_params(m_stream,
-                                    static_cast<const struct spa_pod **>(params.data),
-                                    params.size / sizeof(struct spa_pod *));
-            spa_pod_dynamic_builder_clean(&builder);
-            wl_array_release(&params);
+    const spa_pod_prop *modifierProperty =
+            spa_pod_find_prop(param, nullptr, SPA_FORMAT_VIDEO_modifier);
+    if (modifierProperty) {
+        const std::optional<QVector<uint64_t>> modifiers =
+                modifierValues(modifierProperty);
+        if (!modifiers || modifiers->isEmpty()) {
+            failStream(QStringLiteral("PipeWire selected an invalid DMA-BUF modifier list"));
             return;
         }
 
-        if (m_pipewireVideoInfo.modifier == DRM_FORMAT_MOD_INVALID) {
-            blocks = 1;
+        std::optional<NegotiatedFormat> selection;
+        if (m_pendingDmaBufSelection
+            && m_pendingDmaBufSelection->spaFormat == videoInfo.format
+            && m_pendingDmaBufSelection->width == m_activeConstraints.width
+            && m_pendingDmaBufSelection->height == m_activeConstraints.height
+            && m_pendingDmaBufSelection->constraintsGeneration
+                    == m_activeConstraints.generation
+            && m_pendingDmaBufSelection->dmaBufDevice == m_dmaBufDevice
+            && modifiers->contains(m_pendingDmaBufSelection->modifier)) {
+            // The fixed format is the exact allocation already tested during
+            // the first DONT_FIXATE callback. Reusing it avoids an unnecessary
+            // GBM allocation on the latency-sensitive stream startup path.
+            selection = m_pendingDmaBufSelection;
         } else {
-            blocks = gbm_device_get_format_modifier_plane_count(gbm,
-                                                                fourcc,
-                                                                m_pipewireVideoInfo.modifier);
+            selection = selectDmaBufFormat(videoInfo.format, *modifiers);
         }
+        if (!selection) {
+            m_pendingDmaBufSelection.reset();
+            if (rejectDmaBufModifiers(videoInfo.format, *modifiers)
+                && updateStreamFormats()) {
+                qCWarning(SCREENCAST)
+                        << "xdpw: rejected unusable DMA-BUF modifiers and retrying negotiation";
+                return;
+            }
+            failStream(QStringLiteral(
+                    "PipeWire selected a DMA-BUF format that cannot be allocated"));
+            return;
+        }
+
+        const bool requiresFixation =
+                (modifierProperty->flags & SPA_POD_PROP_FLAG_DONT_FIXATE) != 0;
+        const bool samePendingSelection = m_pendingDmaBufSelection
+                && m_pendingDmaBufSelection->drmFormat == selection->drmFormat
+                && m_pendingDmaBufSelection->modifier == selection->modifier
+                && m_pendingDmaBufSelection->planeCount == selection->planeCount
+                && m_pendingDmaBufSelection->width == selection->width
+                && m_pendingDmaBufSelection->height == selection->height
+                && m_pendingDmaBufSelection->constraintsGeneration
+                        == selection->constraintsGeneration
+                && m_pendingDmaBufSelection->dmaBufDevice == selection->dmaBufDevice;
+        if (requiresFixation && !samePendingSelection) {
+            m_pendingDmaBufSelection = std::move(selection);
+            m_videoInfo = videoInfo;
+            m_videoInfo.modifier = m_pendingDmaBufSelection->modifier;
+            qCInfo(SCREENCAST) << "xdpw: fixing DMA-BUF format"
+                               << m_videoInfo.format
+                               << "constraints generation"
+                               << m_pendingDmaBufSelection->constraintsGeneration
+                               << "modifier" << Qt::hex
+                               << m_pendingDmaBufSelection->modifier
+                               << Qt::dec
+                               << "planes" << m_pendingDmaBufSelection->planeCount;
+            if (!updateStreamFormats()) {
+                failStream(QStringLiteral("Failed to fixate the DMA-BUF modifier"));
+            }
+            return;
+        }
+
+        if (requiresFixation) {
+            // A fixed format was already placed first in EnumFormat. A few
+            // PipeWire graph combinations can nevertheless echo the original
+            // choice once more. Its preferred value is the value parsed into
+            // videoInfo.modifier, so accepting it is safe only when it is the
+            // exact allocation we already tested and advertised.
+            if (videoInfo.modifier != selection->modifier) {
+                failStream(QStringLiteral("PipeWire did not honor DMA-BUF fixation"));
+                return;
+            }
+            qCWarning(SCREENCAST)
+                    << "xdpw: accepting repeated DMA-BUF modifier choice after fixation";
+        }
+
+        m_videoInfo = videoInfo;
+        m_videoInfo.modifier = selection->modifier;
+        m_negotiatedFormat = std::move(selection);
+        m_pendingDmaBufSelection.reset();
+        qCInfo(SCREENCAST) << "xdpw: negotiated DMA-BUF format"
+                           << m_videoInfo.format
+                           << m_videoInfo.size.width << "x" << m_videoInfo.size.height
+                           << "constraints generation"
+                           << m_negotiatedFormat->constraintsGeneration
+                           << "modifier" << Qt::hex
+                           << m_negotiatedFormat->modifier
+                           << Qt::dec
+                           << "planes" << m_negotiatedFormat->planeCount;
     } else {
-        m_bufferType = PortalCommon::SHM;
-        blocks = 1;
-        data_type = 1<<SPA_DATA_MemFd;
+        auto formatIterator =
+                std::find_if(m_activeConstraints.shmFormats.cbegin(),
+                             m_activeConstraints.shmFormats.cend(),
+                             [format = videoInfo.format](const ShmFormat &candidate) {
+                                 return candidate.spaFormat == format;
+                             });
+        if (formatIterator == m_activeConstraints.shmFormats.cend()) {
+            formatIterator =
+                    std::find_if(m_activeConstraints.shmFormats.cbegin(),
+                                 m_activeConstraints.shmFormats.cend(),
+                                 [format = videoInfo.format](const ShmFormat &candidate) {
+                return PipeWireutils::pipewireFormatStripAlpha(
+                               candidate.spaFormat)
+                        == format;
+            });
+        }
+        if (formatIterator == m_activeConstraints.shmFormats.cend()) {
+            failStream(QStringLiteral(
+                    "PipeWire selected a format not offered by the compositor"));
+            return;
+        }
+
+        NegotiatedFormat selection;
+        selection.transport = BufferTransport::Shm;
+        selection.wlFormat = formatIterator->wlFormat;
+        selection.drmFormat = formatIterator->drmFormat;
+        selection.spaFormat = videoInfo.format;
+        selection.bytesPerPixel = formatIterator->bytesPerPixel;
+        selection.width = m_activeConstraints.width;
+        selection.height = m_activeConstraints.height;
+        selection.constraintsGeneration = m_activeConstraints.generation;
+        m_videoInfo = videoInfo;
+        m_negotiatedFormat = std::move(selection);
+        m_pendingDmaBufSelection.reset();
+        qCInfo(SCREENCAST) << "xdpw: negotiated SHM format"
+                           << m_videoInfo.format
+                           << m_videoInfo.size.width << "x" << m_videoInfo.size.height
+                           << "constraints generation"
+                           << m_negotiatedFormat->constraintsGeneration;
     }
 
-    qCDebug(SCREENCAST, "pipewire: Format negotiated:");
-    qCDebug(SCREENCAST, "pipewire: bufferType: %u (%u)", m_bufferType, data_type);
-    qCDebug(SCREENCAST, "pipewire: format: %u", m_pipewireVideoInfo.format);
-    qCDebug(SCREENCAST, "pipewire: modifier: %lu", m_pipewireVideoInfo.modifier);
-    qCDebug(SCREENCAST, "pipewire: size: (%u, %u)", m_pipewireVideoInfo.size.width, m_pipewireVideoInfo.size.height);
-    qCDebug(SCREENCAST, "pipewire: max_framerate: (%u / %u)", m_pipewireVideoInfo.max_framerate.num, m_pipewireVideoInfo.max_framerate.denom);
-
-    addPod(&params, buildBuffer(&builder.b, blocks, 0, 0, data_type));
-
-    addPod(&params,  static_cast<struct spa_pod *>(spa_pod_builder_add_object(&builder.b,
-                                                                              SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta,
-                                                                              SPA_PARAM_META_type, SPA_POD_Id(SPA_META_Header),
-                                                                              SPA_PARAM_META_size, SPA_POD_Int(sizeof(struct spa_meta_header)))));
-
-    addPod(&params,  static_cast<struct spa_pod *>(spa_pod_builder_add_object(&builder.b,
-                                                                              SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta,
-                                                                              SPA_PARAM_META_type, SPA_POD_Id(SPA_META_VideoTransform),
-                                                                              SPA_PARAM_META_size, SPA_POD_Int(sizeof(struct spa_meta_videotransform)))));
-
-    addPod(&params,  static_cast<struct spa_pod *>(spa_pod_builder_add_object(&builder.b,
-                                                                              SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta,
-                                                                              SPA_PARAM_META_type, SPA_POD_Id(SPA_META_VideoDamage),
-                                                                              SPA_PARAM_META_size, SPA_POD_CHOICE_RANGE_Int(
-                                                                                      sizeof(struct spa_meta_region) * DAMAGE_REGION_COUNT,
-                                                                                      sizeof(struct spa_meta_region) * 1,
-                                                                                      sizeof(struct spa_meta_region) * DAMAGE_REGION_COUNT))));
-
-    pw_stream_update_params(m_stream,
-                            static_cast<const struct spa_pod **>(params.data),
-                            params.size / sizeof(struct spa_pod *));
-    spa_pod_dynamic_builder_clean(&builder);
-    wl_array_release(&params);
-}
-
-void AbstractPipeWireStream::onStreamRemoveBuffer(pw_buffer *buffer)
-{
-    PipeWireSourceBuffer *pipeWireSourceBuffer =
-            static_cast<PipeWireSourceBuffer *>(buffer->user_data);
-
-    if (pipeWireSourceBuffer) {
-        m_buffers.removeOne(pipeWireSourceBuffer);
-        destroyPipeWireSourceBuffer(pipeWireSourceBuffer);
+    if (!updateStreamBufferParams()) {
+        failStream(QStringLiteral("Failed to configure PipeWire capture buffers"));
     }
-
-    if (m_currentFrame.pwBuffer == buffer) {
-        m_currentFrame.pwBuffer = nullptr;
-        m_currentFrame.pipeWireSourceBuffer = nullptr;
-    }
-
-    for (uint32_t plane = 0; plane < buffer->buffer->n_datas; plane++) {
-        buffer->buffer->datas[plane].fd = -1;
-    }
-
-    buffer->user_data = nullptr;
 }
 
 void AbstractPipeWireStream::onStreamAddBuffer(pw_buffer *buffer)
 {
-    struct spa_data *d;
-    enum spa_data_type t;
-    d = buffer->buffer->datas;
-
-    if ((d[0].type & (1u << SPA_DATA_MemFd)) > 0) {
-        assert(m_bufferType == PortalCommon::SHM);
-        t = SPA_DATA_MemFd;
-    } else if ((d[0].type & (1u << SPA_DATA_DmaBuf)) > 0) {
-        assert(m_bufferType == PortalCommon::DMABUF);
-        t = SPA_DATA_DmaBuf;
-    } else {
-        qCCritical(SCREENCAST) <<"unsupported buffer type" << d[0].type;
-        m_err = 1;
+    if (isTerminalState()) {
         return;
     }
 
-    qCDebug(SCREENCAST, "pipewire: selected buffertype %u", t);
-
-    PipeWireSourceBuffer *pipeWireSourceBuffer = createPipeWireSourceBuffer(m_bufferType);
-    if (!pipeWireSourceBuffer) {
-        qCCritical(SCREENCAST, "pipewire: failed to create xdpw buffer");
-        m_err = 1;
+    if (!isCurrentNegotiatedFormat() || !buffer || !buffer->buffer
+        || !buffer->buffer->datas) {
+        failStream(QStringLiteral("PipeWire supplied an invalid buffer layout"));
         return;
     }
 
-    m_buffers.append(pipeWireSourceBuffer);
-    buffer->user_data = pipeWireSourceBuffer;
+    const uint32_t expectedPlaneCount = m_negotiatedFormat->planeCount;
+    if (expectedPlaneCount == 0
+        || expectedPlaneCount > GBM_MAX_PLANES
+        || buffer->buffer->n_datas != expectedPlaneCount) {
+        failStream(QStringLiteral("PipeWire supplied an unexpected plane layout"));
+        return;
+    }
 
-    assert(pipeWireSourceBuffer->planeCount >= 0 &&
-           buffer->buffer->n_datas == (uint32_t)pipeWireSourceBuffer->planeCount);
-    for (uint32_t plane = 0; plane < buffer->buffer->n_datas; plane++) {
-        d[plane].type = t;
-        d[plane].maxsize = pipeWireSourceBuffer->size[plane];
-        d[plane].mapoffset = 0;
-        d[plane].chunk->size = pipeWireSourceBuffer->size[plane];
-        d[plane].chunk->stride = pipeWireSourceBuffer->stride[plane];
-        d[plane].chunk->offset = pipeWireSourceBuffer->offset[plane];
-        d[plane].flags = 0;
-        d[plane].fd = pipeWireSourceBuffer->fd[plane];
-        d[plane].data = nullptr;
-        if (pipeWireSourceBuffer->bufferType == PortalCommon::DMABUF && d[plane].chunk->size == 0) {
-            d[plane].chunk->size = 9;
+    spa_data *data = buffer->buffer->datas;
+    const spa_data_type dataType =
+            m_negotiatedFormat->transport == BufferTransport::DmaBuf
+            ? SPA_DATA_DmaBuf
+            : SPA_DATA_MemFd;
+    for (uint32_t plane = 0; plane < expectedPlaneCount; ++plane) {
+        if ((data[plane].type & (1U << dataType)) == 0
+            || !data[plane].chunk) {
+            failStream(QStringLiteral(
+                    "PipeWire supplied an incompatible buffer plane"));
+            return;
         }
     }
+
+    PipeWireSourceBuffer *sourceBuffer = createPipeWireSourceBuffer();
+    if (!sourceBuffer) {
+        failStream(m_negotiatedFormat->transport == BufferTransport::DmaBuf
+                           ? QStringLiteral("Failed to allocate a DMA-BUF capture buffer")
+                           : QStringLiteral("Failed to allocate a shared-memory capture buffer"));
+        return;
+    }
+    if (sourceBuffer->planeCount != expectedPlaneCount) {
+        destroyPipeWireSourceBuffer(sourceBuffer);
+        failStream(QStringLiteral("Allocated capture buffer has an unexpected plane count"));
+        return;
+    }
+
+    for (uint32_t plane = 0; plane < expectedPlaneCount; ++plane) {
+        const BufferPlane &sourcePlane = sourceBuffer->planes.at(plane);
+        data[plane].type = dataType;
+        data[plane].flags = SPA_DATA_FLAG_READWRITE;
+        if (dataType == SPA_DATA_MemFd) {
+            data[plane].flags |= SPA_DATA_FLAG_MAPPABLE;
+        }
+        data[plane].fd = sourcePlane.fd;
+        data[plane].mapoffset = 0;
+        data[plane].maxsize = sourcePlane.maxSize;
+        data[plane].data = nullptr;
+        data[plane].chunk->offset = sourcePlane.offset;
+        data[plane].chunk->size = sourcePlane.maxSize;
+        data[plane].chunk->stride =
+                static_cast<int32_t>(sourcePlane.stride);
+        data[plane].chunk->flags = SPA_CHUNK_FLAG_NONE;
+    }
+
+    buffer->user_data = sourceBuffer;
+    m_buffers.append(sourceBuffer);
+    qCDebug(SCREENCAST)
+                        << (sourceBuffer->transport == BufferTransport::DmaBuf
+                                    ? "xdpw: added DMA-BUF buffer"
+                                    : "xdpw: added SHM buffer")
+                        << buffer
+                        << "planes" << sourceBuffer->planeCount
+                        << "constraints generation"
+                        << sourceBuffer->constraintsGeneration
+                        << "buffer generation"
+                        << sourceBuffer->bufferGeneration;
+
+    if (m_reconfiguringBuffers
+        && sourceBuffer->bufferGeneration == m_bufferGeneration
+        && sourceBuffer->constraintsGeneration
+                == m_activeConstraints.generation) {
+        m_reconfiguringBuffers = false;
+        qCInfo(SCREENCAST) << "xdpw: buffer reconfiguration completed at generation"
+                           << m_bufferGeneration;
+        schedulePendingConstraints();
+    }
+}
+
+void AbstractPipeWireStream::onStreamRemoveBuffer(pw_buffer *buffer)
+{
+    if (!buffer || !buffer->buffer) {
+        return;
+    }
+
+    auto *sourceBuffer = static_cast<PipeWireSourceBuffer *>(buffer->user_data);
+    if (m_transaction && m_transaction->pipeWireBuffer == buffer) {
+        qCWarning(SCREENCAST) << "xdpw: PipeWire removed in-flight buffer for transaction"
+                              << m_transaction->id;
+        cancelTransaction("PipeWire removed in-flight buffer");
+    }
+
+    for (uint32_t plane = 0;
+         buffer->buffer->datas && plane < buffer->buffer->n_datas;
+         ++plane) {
+        buffer->buffer->datas[plane].fd = -1;
+        buffer->buffer->datas[plane].data = nullptr;
+    }
+    buffer->user_data = nullptr;
+
+    if (sourceBuffer) {
+        m_buffers.removeOne(sourceBuffer);
+        destroyPipeWireSourceBuffer(sourceBuffer);
+    }
+
+    // PipeWire owns the buffer until this callback returns. Defer any pending
+    // format update so it cannot synchronously re-enter buffer removal.
+    schedulePendingConstraints();
 }
 
 void AbstractPipeWireStream::onStreamProcess()
 {
-    if (!m_isStreaming) {
-        qCDebug(SCREENCAST, "pipewire: not streaming");
+    if (m_state != LifecycleState::Streaming
+        || m_reconfiguringBuffers
+        || m_pendingConstraints
+        || m_transaction
+        || !m_stream) {
         return;
     }
 
-    if (m_currentFrame.pwBuffer) {
-        qCDebug(SCREENCAST, "pipewire: buffer already exported");
+    pw_buffer *pipeWireBuffer = pw_stream_dequeue_buffer(m_stream);
+    if (!pipeWireBuffer) {
+        qCDebug(SCREENCAST) << "xdpw: PipeWire process without an available buffer";
         return;
     }
 
-    dequeueBuffer();
-    if (!m_currentFrame.pwBuffer) {
-        qCDebug(SCREENCAST, "pipewire: unable to export buffer");
+    auto *sourceBuffer = static_cast<PipeWireSourceBuffer *>(pipeWireBuffer->user_data);
+    if (!isCurrentBuffer(sourceBuffer)) {
+        qCWarning(SCREENCAST) << "xdpw: dequeued stale or invalid capture buffer";
+        queueBuffer(pipeWireBuffer,
+                    sourceBuffer,
+                    false,
+                    normalizePresentationTime(monotonicTimeNanoseconds()),
+                    WL_OUTPUT_TRANSFORM_NORMAL);
         return;
     }
 
-    if (m_seq > 0) {
-        uint64_t delay_ns = fps_limit_measure_end(&fps_limit, m_framerate);
-        if (delay_ns > 0) {
-            qCDebug(SCREENCAST) << "seq:" << m_seq << "delay_ns" << delay_ns << "framerate" << m_framerate;
-            m_timer->start(delay_ns / 1000000);
-            return;
-        }
-    }
-
-    startframeCapture();
+    FrameTransaction transaction;
+    transaction.id = m_nextTransactionId++;
+    transaction.pipeWireBuffer = pipeWireBuffer;
+    transaction.sourceBuffer = sourceBuffer;
+    m_transaction = transaction;
+    startFrameCapture();
 }
 
-void AbstractPipeWireStream::enqueueBuffer()
+void AbstractPipeWireStream::beginConstraintBatch()
 {
-    qCDebug(SCREENCAST, "pipewire: enqueue buffer");
-
-    if (!m_currentFrame.pwBuffer) {
-        qCWarning(SCREENCAST, "pipewire: no buffer to queue");
-    } else {
-        struct pw_buffer *pw_buf = m_currentFrame.pwBuffer;
-        struct spa_buffer *spa_buf = pw_buf->buffer;
-        struct spa_data *d = spa_buf->datas;
-
-        bool buffer_corrupt = m_frameState != XDPW_FRAME_STATE_SUCCESS;
-
-        struct spa_meta_header *h;
-        if ((h = static_cast<struct spa_meta_header *>(spa_buffer_find_meta_data(spa_buf, SPA_META_Header, sizeof(*h))))) {
-            h->pts = SPA_TIMESPEC_TO_NSEC(&m_currentFrame);
-            h->flags = buffer_corrupt ? SPA_META_HEADER_FLAG_CORRUPTED : 0;
-            h->seq = m_seq++;
-            h->dts_offset = 0;
-        }
-
-        struct spa_meta_videotransform *vt;
-        if ((vt = static_cast<struct spa_meta_videotransform *>(spa_buffer_find_meta_data(spa_buf, SPA_META_VideoTransform, sizeof(*vt))))) {
-            vt->transform = m_currentFrame.transformation;
-        }
-
-        struct spa_meta *damage;
-        if ((damage = spa_buffer_find_meta(spa_buf, SPA_META_VideoDamage))) {
-            struct spa_region *d_region = static_cast<struct spa_region *>(spa_meta_first(damage));
-            uint32_t damage_counter = 0;
-            bool stopped_for_spa = false;
-            for(QRegion::const_iterator it = m_currentFrame.pipeWireSourceBuffer->damage.begin(); it != m_currentFrame.pipeWireSourceBuffer->damage.end(); ++it) {
-                const QRect &rect = *it;
-                if (!spa_meta_check(d_region + 1, damage)) {
-                    stopped_for_spa = true;
-                    break;
-                }
-                d_region++;
-
-                *d_region = SPA_REGION(rect.x(),
-                                       rect.y(),
-                                       rect.width(),
-                                       rect.height());
-                qCDebug(SCREENCAST, "pipewire: damage %u %u,%u (%ux%u)", damage_counter,
-                         d_region->position.x, d_region->position.y, d_region->size.width, d_region->size.height);
-                damage_counter++;
-            }
-            if (stopped_for_spa) {
-                QRegion new_fdamage = QRegion(d_region->position.x, d_region->position.y, d_region->size.width, d_region->size.height);
-
-                for(QRegion::const_iterator it = m_currentFrame.pipeWireSourceBuffer->damage.begin(); it != m_currentFrame.pipeWireSourceBuffer->damage.end(); ++it) {
-                    const QRect &rect = *it;
-                    if (damage_counter-- > 0) {
-                        continue;
-                    }
-                    new_fdamage += rect;
-                }
-                *d_region = SPA_REGION(new_fdamage.boundingRect().x(),
-                                       new_fdamage.boundingRect().y(),
-                                       new_fdamage.boundingRect().width(),
-                                       new_fdamage.boundingRect().height());
-                qCDebug(SCREENCAST, "pipewire: collected damage %u %u,%u (%ux%u)", damage_counter,
-                         d_region->position.x, d_region->position.y, d_region->size.width, d_region->size.height);
-            }
-        }
-
-        if (buffer_corrupt) {
-            for (uint32_t plane = 0; plane < spa_buf->n_datas; plane++) {
-                d[plane].chunk->flags = SPA_CHUNK_FLAG_CORRUPTED;
-            }
-        } else {
-            for (uint32_t plane = 0; plane < spa_buf->n_datas; plane++) {
-                d[plane].chunk->flags = SPA_CHUNK_FLAG_NONE;
-            }
-        }
-
-        for (uint32_t plane = 0; plane < spa_buf->n_datas; plane++) {
-            qCDebug(SCREENCAST, "pipewire: plane %d", plane);
-            qCDebug(SCREENCAST, "pipewire: fd %u", d[plane].fd);
-            qCDebug(SCREENCAST, "pipewire: maxsize %d", d[plane].maxsize);
-            qCDebug(SCREENCAST, "pipewire: size %d", d[plane].chunk->size);
-            qCDebug(SCREENCAST, "pipewire: stride %d", d[plane].chunk->stride);
-            qCDebug(SCREENCAST, "pipewire: offset %d", d[plane].chunk->offset);
-            qCDebug(SCREENCAST, "pipewire: chunk flags %d", d[plane].chunk->flags);
-        }
-        qCDebug(SCREENCAST, "pipewire: width %d", m_currentFrame.pipeWireSourceBuffer->width);
-        qCDebug(SCREENCAST, "pipewire: height %d", m_currentFrame.pipeWireSourceBuffer->height);
-        qCDebug(SCREENCAST, "pipewire: format %d", m_pipewireVideoInfo.format);
-        qCDebug(SCREENCAST) << "pipewire: buffer type" << m_bufferType;
-        pw_stream_queue_buffer(m_stream, pw_buf);
-    }
-
-    m_currentFrame.pipeWireSourceBuffer = nullptr;
-    m_currentFrame.pwBuffer = nullptr;
-}
-
-void AbstractPipeWireStream::dequeueBuffer()
-{
-    qCDebug(SCREENCAST, "pipewire: dequeueing buffer");
-
-    assert(!m_currentFrame.pwBuffer);
-    if (!(m_currentFrame.pwBuffer = pw_stream_dequeue_buffer(m_stream))) {
-        qCWarning(SCREENCAST, "pipewire: out of buffers");
+    if (m_collectingConstraints) {
         return;
     }
 
-    m_currentFrame.pipeWireSourceBuffer = static_cast<PipeWireSourceBuffer *>(m_currentFrame.pwBuffer->user_data);
+    m_constraintBatch = {};
+    m_collectingConstraints = true;
 }
 
-void AbstractPipeWireStream::buildFormats(spa_pod_builder *builder, wl_array *params)
+bool AbstractPipeWireStream::validateConstraints(const CaptureConstraints &constraints,
+                                                 QString *error) const
 {
-    if (!m_avoidDMAbufs) {
-        uint32_t last_format = DRM_FORMAT_INVALID;
-        foreach (struct DRMFormatModifierPair *formatPairvar, std::as_const(m_currentConstraints.dmabuf_format_modifier_pairs)) {
-            if (last_format == formatPairvar->fourcc) {
-                continue;
-            }
-            enum spa_video_format pw_format = PipeWireutils::pipewireFormatFromDRMFormat(formatPairvar->fourcc);
-            if (pw_format == SPA_VIDEO_FORMAT_UNKNOWN) {
-                continue;
-            }
-            last_format = formatPairvar->fourcc;
-
-            uint32_t modifier_count;
-            uint64_t *modifiers = nullptr;
-            buildModifierList(formatPairvar->fourcc, &modifiers, &modifier_count);
-            if (modifier_count > 0) {
-                addPod(params, buildFormat(builder, pw_format,
-                                             m_currentConstraints.width, m_currentConstraints.height,
-                                             m_framerate, modifiers, modifier_count));
-            }
-            free(modifiers);
-        }
-    }
-
-    foreach (struct xdpw_shm_format *format, std::as_const(m_currentConstraints.shm_formats)) {
-        enum spa_video_format pw_format = PipeWireutils::pipewireFormatFromDRMFormat(format->fourcc);
-        if (pw_format != SPA_VIDEO_FORMAT_UNKNOWN) {
-            addPod(params, buildFormat(builder, pw_format,
-                                         m_currentConstraints.width, m_currentConstraints.height,
-                                         m_framerate, nullptr, 0));
-        }
-    }
-}
-
-void AbstractPipeWireStream::pipewireBufferConstraintsInit(struct PipewireBufferConstraints *constraints)
-{
-    constraints->dirty = false;
-    constraints->width = 0;
-    constraints->height = 0;
-    constraints->dmabuf_format_modifier_pairs.clear();
-    constraints->shm_formats.clear();
-    constraints->gbm = nullptr;
-}
-
-bool AbstractPipeWireStream::pipewireBufferConstraintsMove(PipewireBufferConstraints *dst, PipewireBufferConstraints *src)
-{
-    if (!src->dirty) {
+    if (constraints.width == 0 || constraints.height == 0
+        || constraints.width > static_cast<uint32_t>(INT_MAX)
+        || constraints.height > static_cast<uint32_t>(INT_MAX)) {
+        *error = QStringLiteral("invalid capture dimensions %1x%2")
+                         .arg(constraints.width)
+                         .arg(constraints.height);
         return false;
     }
-    int dirty = src->dirty;
+    const bool hasDmaBufConstraints = constraints.dmaBufDevice
+            && !constraints.dmaBufFormats.isEmpty();
+    if (constraints.shmFormats.isEmpty() && !hasDmaBufConstraints) {
+        *error = QStringLiteral("compositor did not advertise a supported capture format");
+        return false;
+    }
 
-    pipewireBufferConstraintsFinish(dst);
-    dst->dirty = src->dirty;
-    dst->width = src->width;
-    dst->height = src->height;
-    dst->dmabuf_format_modifier_pairs = src->dmabuf_format_modifier_pairs;
-    dst->shm_formats = src->shm_formats;
-    dst->gbm = src->gbm;
+    for (const ShmFormat &format : constraints.shmFormats) {
+        const uint64_t stride = static_cast<uint64_t>(constraints.width)
+                * format.bytesPerPixel;
+        const uint64_t alignedStride = (stride + 3U) & ~uint64_t(3U);
+        const uint64_t size = alignedStride * constraints.height;
+        if (alignedStride > static_cast<uint64_t>(INT_MAX)
+            || size > static_cast<uint64_t>(INT_MAX)) {
+            *error = QStringLiteral("capture buffer is too large");
+            return false;
+        }
+    }
 
-    pipewireBufferConstraintsInit(src);
-    return dirty;
+    for (const DmaBufFormat &format : constraints.dmaBufFormats) {
+        if (format.drmFormat == DRM_FORMAT_INVALID
+            || format.spaFormat == SPA_VIDEO_FORMAT_UNKNOWN
+            || format.modifiers.isEmpty()
+            || format.modifiers.size() > s_maxDmaBufModifiersPerFormat) {
+            *error = QStringLiteral("compositor advertised invalid DMA-BUF constraints");
+            return false;
+        }
+    }
+
+    return true;
 }
 
-void AbstractPipeWireStream::pipewireBufferConstraintsFinish(PipewireBufferConstraints *constraints)
+bool AbstractPipeWireStream::constraintsEqual(const CaptureConstraints &lhs,
+                                              const CaptureConstraints &rhs) const
 {
-    foreach (struct xdpw_shm_format *fmt, constraints->shm_formats) {
-        delete fmt;
-    }
-    foreach (struct DRMFormatModifierPair *formatPair, m_currentConstraints.dmabuf_format_modifier_pairs) {
-        delete formatPair;
+    if (lhs.width != rhs.width
+        || lhs.height != rhs.height
+        || lhs.shmFormats.size() != rhs.shmFormats.size()
+        || lhs.dmaBufDevice != rhs.dmaBufDevice
+        || lhs.dmaBufFormats.size() != rhs.dmaBufFormats.size()) {
+        return false;
     }
 
-    constraints->dmabuf_format_modifier_pairs.clear();
-    constraints->shm_formats.clear();
-    if (constraints->gbm) {
-        int fd = gbm_device_get_fd(constraints->gbm);
-        gbm_device_destroy(constraints->gbm);
-        close(fd);
+    for (qsizetype index = 0; index < lhs.shmFormats.size(); ++index) {
+        const ShmFormat &left = lhs.shmFormats.at(index);
+        const ShmFormat &right = rhs.shmFormats.at(index);
+        if (left.wlFormat != right.wlFormat
+            || left.drmFormat != right.drmFormat
+            || left.spaFormat != right.spaFormat
+            || left.bytesPerPixel != right.bytesPerPixel) {
+            return false;
+        }
     }
-    constraints->gbm = nullptr;
-    constraints->dirty = false;
-    constraints->height = 0;
-    constraints->width = 0;
+
+    for (qsizetype index = 0; index < lhs.dmaBufFormats.size(); ++index) {
+        const DmaBufFormat &left = lhs.dmaBufFormats.at(index);
+        const DmaBufFormat &right = rhs.dmaBufFormats.at(index);
+        if (left.drmFormat != right.drmFormat
+            || left.spaFormat != right.spaFormat
+            || left.modifiers != right.modifiers) {
+            return false;
+        }
+    }
+    return true;
 }
 
-void AbstractPipeWireStream::frameCapture()
+void AbstractPipeWireStream::applyPendingConstraints()
 {
-    qCDebug(SCREENCAST) << "pipewire: frameCapture";
-    if (!m_currentFrame.pipeWireSourceBuffer) {
-        qCDebug(SCREENCAST, "ext: started frame without buffer");
+    if (!m_pendingConstraints
+        || m_transaction
+        || m_reconfiguringBuffers) {
         return;
     }
 
-    if (m_quit || m_err) {
-        qCDebug(SCREENCAST) << "frameCapture failed" << "m_quit:" << m_quit << "m_err:" << m_err;
-        Q_EMIT failed("frameCapture failed");
+    const bool constraintsChanged =
+            !constraintsEqual(m_activeConstraints, *m_pendingConstraints);
+    const bool forceReconfiguration =
+            m_pendingConstraintsRequireReconfiguration;
+    m_pendingConstraintsRequireReconfiguration = false;
+
+    if (!constraintsChanged) {
+        if (forceReconfiguration) {
+            qCInfo(SCREENCAST)
+                    << "xdpw: re-applying unchanged constraints after buffer rejection"
+                    << m_pendingConstraints->generation;
+        } else {
+            qCDebug(SCREENCAST) << "xdpw: ignoring unchanged constraints generation"
+                                << m_pendingConstraints->generation;
+        }
+        m_pendingConstraints.reset();
+        if (forceReconfiguration
+            && m_stream
+            && !beginBufferReconfiguration(
+                    "compositor rejected a buffer against unchanged constraints")) {
+            failStream(QStringLiteral("Failed to re-allocate rejected capture buffers"));
+        }
         return;
     }
 
-    if (m_initialized && !m_isStreaming) {
-        qCDebug(SCREENCAST) << "state error," << "m_initialized:"  << m_initialized << "m_isStreaming:" << m_isStreaming;
-        m_frameState = XDPW_FRAME_STATE_NONE;
-        return;
-    }
+    m_activeConstraints = std::move(*m_pendingConstraints);
+    m_pendingConstraints.reset();
+    m_negotiatedFormat.reset();
+    m_pendingDmaBufSelection.reset();
+    refreshDmaBufCapabilities();
 
-    m_frameState = XDPW_FRAME_STATE_STARTED;
-    createImageCaptureFrame();
+    qCInfo(SCREENCAST) << "xdpw: applying constraints generation"
+                       << m_activeConstraints.generation
+                       << m_activeConstraints.width << "x" << m_activeConstraints.height
+                       << "usable DMA-BUF formats" << m_usableDmaBufFormats.size();
+
+    if (m_stream
+        && !beginBufferReconfiguration("capture constraints changed")) {
+        failStream(QStringLiteral("Failed to renegotiate capture constraints"));
+    }
 }
 
-void AbstractPipeWireStream::createImageCaptureFrame()
+void AbstractPipeWireStream::schedulePendingConstraints()
 {
-    qCDebug(SCREENCAST) << "pipewire: createImageCaptureFrame" << m_frame;
-    if (m_frame)
+    if (isTerminalState()
+        || !m_pendingConstraints
+        || m_transaction
+        || m_reconfiguringBuffers
+        || m_constraintsApplyScheduled) {
         return;
+    }
 
-    m_frame = new ImageCopyCaptureFrame(m_session->create_frame());
-    connect(m_frame, &ImageCopyCaptureFrame::transformChanged, this,
-            &AbstractPipeWireStream::handleFrameTransform);
-    connect(m_frame, &ImageCopyCaptureFrame::damaged, this,
-            &AbstractPipeWireStream::handleFrameDamage);
-    connect(m_frame, &ImageCopyCaptureFrame::presentationTimeChanged, this,
-            &AbstractPipeWireStream::handleFramePresentationTime);
-    connect(m_frame, &ImageCopyCaptureFrame::ready, this,
-            &AbstractPipeWireStream::handleFrameReady);
-    connect(m_frame, &ImageCopyCaptureFrame::failed, this,
-            &AbstractPipeWireStream::handleFrameFailed);
-
-    if (m_currentFrame.pipeWireSourceBuffer) {
-        m_frame->attach_buffer(m_currentFrame.pipeWireSourceBuffer->buffer);
-        foreach (PipeWireSourceBuffer *buffer, std::as_const(m_buffers)) {
-            for(QRegion::const_iterator it = buffer->damage.begin(); it != buffer->damage.end(); ++it) {
-                const QRect &rect = *it;
-                m_frame->damaged(rect.x(), rect.y(), rect.width(), rect.height());
-            }
+    m_constraintsApplyScheduled = true;
+    QMetaObject::invokeMethod(this, [this] {
+        m_constraintsApplyScheduled = false;
+        if (isTerminalState()
+            || !m_pendingConstraints
+            || m_transaction
+            || m_reconfiguringBuffers) {
+            return;
         }
 
-        m_frame->capture();
-    }
+        applyPendingConstraints();
+        if (!m_stream
+            && !isTerminalState()
+            && m_activeConstraints.generation != 0
+            && !createStream()) {
+            failStream(QStringLiteral("Failed to create PipeWire stream"));
+        }
+    }, Qt::QueuedConnection);
 }
 
-void AbstractPipeWireStream::destroyImageCaptureFrame()
+void AbstractPipeWireStream::handleCaptureSessionBufferSizeChanged(uint32_t width,
+                                                                   uint32_t height)
 {
-    if (!m_frame) {
+    if (isTerminalState()) {
         return;
     }
 
-    QObject::disconnect(m_frame, nullptr, nullptr, nullptr);
-    m_frame->destroy();
-    delete m_frame;
-    m_frame = nullptr;
-}
-
-void AbstractPipeWireStream::finishImageCaptureFrame()
-{
-    destroyImageCaptureFrame();
-
-    if (m_quit || m_err) {
-        Q_EMIT failed("frame finish!");
-        qCWarning(SCREENCAST, "finish screencopy failed");
-        return;
-    }
-
-    if (!m_isStreaming) {
-        m_frameState = XDPW_FRAME_STATE_NONE;
-        qCDebug(SCREENCAST, "finish screencopy XDPW_FRAME_STATE_NONE");
-        return;
-    }
-
-    if (m_frameState == XDPW_FRAME_STATE_RENEG) {
-        qCDebug(SCREENCAST, "finish screencopy XDPW_FRAME_STATE_RENEG");
-        updateStreamParam();
-    }
-
-    if (m_frameState == XDPW_FRAME_STATE_FAILED) {
-        qCDebug(SCREENCAST, "finish screencopy XDPW_FRAME_STATE_FAILED");
-        enqueueBuffer();
-    }
-
-    if (m_frameState == XDPW_FRAME_STATE_SUCCESS) {
-        qCDebug(SCREENCAST, "finish screencopy XDPW_FRAME_STATE_SUCCESS");
-        enqueueBuffer();
-    }
-}
-
-void AbstractPipeWireStream::handleCaptureSessionBufferSizeChanged(uint32_t width, uint32_t height)
-{
-    m_pendingConstraints.width = width;
-    m_pendingConstraints.height = height;
-    m_pendingConstraints.dirty = true;
+    beginConstraintBatch();
+    m_constraintBatch.width = width;
+    m_constraintBatch.height = height;
 }
 
 void AbstractPipeWireStream::handleCaptureSessionShmFormatChanged(uint32_t format)
 {
-    uint32_t fourcc = PipeWireutils::drmFormatfromWLShmFormat(static_cast<wl_shm_format>(format));
+    if (isTerminalState()) {
+        return;
+    }
 
-    char *fmt_name = drmGetFormatName(fourcc);
-    struct xdpw_shm_format *fmt;
-    foreach (struct xdpw_shm_format *fmt, std::as_const(m_pendingConstraints.shm_formats)) {
-        if (fmt->fourcc == fourcc) {
-            qCDebug(SCREENCAST, "ext: skipping duplicated format: %s (%X)", fmt_name, fourcc);
-            free(fmt_name);
+    beginConstraintBatch();
+
+    const uint32_t drmFormat =
+            PipeWireutils::drmFormatfromWLShmFormat(static_cast<wl_shm_format>(format));
+    const int bytesPerPixel = PipeWireutils::pipewireBPPFromDrmFourcc(drmFormat);
+    if (bytesPerPixel <= 0) {
+        qCInfo(SCREENCAST) << "xdpw: ignoring unsupported compositor SHM format"
+                           << Qt::hex << format;
+        return;
+    }
+
+    const auto existing = std::find_if(m_constraintBatch.shmFormats.cbegin(),
+                                       m_constraintBatch.shmFormats.cend(),
+                                       [format](const ShmFormat &candidate) {
+                                           return candidate.wlFormat == format;
+                                       });
+    if (existing != m_constraintBatch.shmFormats.cend()) {
+        return;
+    }
+    if (m_constraintBatch.shmFormats.size() >= s_maxShmFormats) {
+        qCWarning(SCREENCAST) << "xdpw: ignoring excess compositor SHM format";
+        return;
+    }
+
+    ShmFormat shmFormat;
+    shmFormat.wlFormat = format;
+    shmFormat.drmFormat = drmFormat;
+    shmFormat.spaFormat = PipeWireutils::pipewireFormatFromDRMFormat(drmFormat);
+    if (shmFormat.spaFormat == SPA_VIDEO_FORMAT_UNKNOWN) {
+        qCInfo(SCREENCAST) << "xdpw: ignoring unmappable compositor SHM format"
+                           << Qt::hex << format << Qt::dec;
+        return;
+    }
+    shmFormat.bytesPerPixel = static_cast<uint32_t>(bytesPerPixel);
+    m_constraintBatch.shmFormats.append(shmFormat);
+}
+
+void AbstractPipeWireStream::handleCaptureSessionDmaBufDeviceChanged(wl_array *device)
+{
+    if (isTerminalState()) {
+        return;
+    }
+
+    beginConstraintBatch();
+    if (!device || device->size != sizeof(dev_t) || !device->data) {
+        qCWarning(SCREENCAST) << "xdpw: ignoring malformed compositor DMA-BUF device";
+        return;
+    }
+
+    dev_t deviceId = 0;
+    std::memcpy(&deviceId, device->data, sizeof(deviceId));
+    m_constraintBatch.dmaBufDevice = deviceId;
+}
+
+void AbstractPipeWireStream::handleCaptureSessionDmaBufFormatChanged(
+        uint32_t format,
+        wl_array *modifiers)
+{
+    if (isTerminalState()) {
+        return;
+    }
+
+    beginConstraintBatch();
+    if (format == DRM_FORMAT_INVALID
+        || !modifiers
+        || !modifiers->data
+        || modifiers->size == 0
+        || modifiers->size % sizeof(uint64_t) != 0) {
+        qCWarning(SCREENCAST) << "xdpw: ignoring malformed compositor DMA-BUF format"
+                              << Qt::hex << format << Qt::dec;
+        return;
+    }
+
+    const size_t modifierCount = modifiers->size / sizeof(uint64_t);
+    if (modifierCount > static_cast<size_t>(s_maxDmaBufModifiersPerFormat)) {
+        qCWarning(SCREENCAST) << "xdpw: ignoring DMA-BUF format with too many modifiers"
+                              << modifierCount;
+        return;
+    }
+
+    const spa_video_format spaFormat =
+            PipeWireutils::pipewireFormatFromDRMFormat(format);
+    if (spaFormat == SPA_VIDEO_FORMAT_UNKNOWN) {
+        qCInfo(SCREENCAST) << "xdpw: ignoring unsupported compositor DMA-BUF format"
+                           << Qt::hex << format << Qt::dec;
+        return;
+    }
+
+    auto existing = std::find_if(m_constraintBatch.dmaBufFormats.begin(),
+                                 m_constraintBatch.dmaBufFormats.end(),
+                                 [format](const DmaBufFormat &candidate) {
+                                     return candidate.drmFormat == format;
+                                 });
+    if (existing == m_constraintBatch.dmaBufFormats.end()) {
+        if (m_constraintBatch.dmaBufFormats.size() >= s_maxDmaBufFormats) {
+            qCWarning(SCREENCAST) << "xdpw: ignoring excess compositor DMA-BUF format";
             return;
         }
+
+        DmaBufFormat dmaBufFormat;
+        dmaBufFormat.drmFormat = format;
+        dmaBufFormat.spaFormat = spaFormat;
+        m_constraintBatch.dmaBufFormats.append(std::move(dmaBufFormat));
+        existing = std::prev(m_constraintBatch.dmaBufFormats.end());
     }
 
-    if (PipeWireutils::pipewireBPPFromDrmFourcc(fourcc) <= 0) {
-        qCDebug(SCREENCAST, "ext: unsupported shm format: %s (%X)", fmt_name, fourcc);
-        return;
-    }
-
-    struct xdpw_shm_format *newFmt = new xdpw_shm_format;
-    newFmt->fourcc = fourcc;
-    newFmt->stride = 0;
-    m_pendingConstraints.dirty = true;
-    m_pendingConstraints.shm_formats.append(newFmt);
-    qCDebug(SCREENCAST, "ext: shm_format: %s (%X)", fmt_name, fourcc);
-    free(fmt_name);
-}
-
-void AbstractPipeWireStream::handleCaptureSessionDmabufDeviceChanged(wl_array *device_arr)
-{
-    dev_t device;
-    assert(device_arr->size == sizeof(device));
-    memcpy(&device, device_arr->data, sizeof(device));
-
-    drmDevice *drmDev;
-    if (drmGetDeviceFromDevId(device, /* flags */ 0, &drmDev) != 0) {
-        m_forceModLinear = true;
-        return;
-    }
-
-    m_pendingConstraints.gbm = ScreenCastContext::createGBMDeviceFromDRMDevice(drmDev);
-    m_pendingConstraints.dirty = true;
-    qCDebug(SCREENCAST, "ext: dmabuf_device handler");
-}
-
-void AbstractPipeWireStream::handleCaptureSessionDmabufFormatChanged(uint32_t format, wl_array *modifiers)
-{
-    char *fmt_name = drmGetFormatName(format);
-    void *p;
-    wl_array_for_each(p, modifiers) {
-        uint64_t *modifier = (uint64_t *)(p);
-        bool newPair = true;
-        foreach (struct DRMFormatModifierPair *tmp, std::as_const(m_pendingConstraints.dmabuf_format_modifier_pairs)) {
-            if (tmp->fourcc == format && tmp->modifier == *modifier) {
-                newPair = false;
+    const auto *bytes = static_cast<const std::byte *>(modifiers->data);
+    for (size_t index = 0; index < modifierCount; ++index) {
+        uint64_t modifier = 0;
+        std::memcpy(&modifier,
+                    bytes + index * sizeof(modifier),
+                    sizeof(modifier));
+        if (!existing->modifiers.contains(modifier)) {
+            if (existing->modifiers.size() >= s_maxDmaBufModifiersPerFormat) {
+                qCWarning(SCREENCAST)
+                        << "xdpw: truncating excess compositor DMA-BUF modifiers";
                 break;
             }
+            existing->modifiers.append(modifier);
         }
-
-        if (!newPair) {
-            qCDebug(SCREENCAST, "ext: skipping duplicated format %s (%X, %lu)", fmt_name, format, *modifier);
-            continue;
-        }
-
-        struct DRMFormatModifierPair *fm_pair = new DRMFormatModifierPair;
-        fm_pair->fourcc = format;
-        fm_pair->modifier = *modifier;
-        m_pendingConstraints.dmabuf_format_modifier_pairs.append(fm_pair);
-
-        char *modifier_name = drmGetFormatModifierName(*modifier);
-        qCDebug(SCREENCAST, "ext: dmabuf_format handler: %s (%X), modifier: %s (%X)",
-                fmt_name,
-                format,
-                modifier_name,
-                *modifier);
-        free(modifier_name);
     }
-
-    m_pendingConstraints.dirty = true;
-    free(fmt_name);
 }
 
 void AbstractPipeWireStream::handleCaptureSessionDone()
 {
-    qCDebug(SCREENCAST, "ext: done handler");
-
-    foreach (struct xdpw_shm_format *fmt, m_pendingConstraints.shm_formats) {
-        int bpp = PipeWireutils::pipewireBPPFromDrmFourcc(fmt->fourcc);
-        assert(bpp > 0);
-        fmt->stride = bpp * m_pendingConstraints.width;
-    }
-
-    if (pipewireBufferConstraintsMove(&m_currentConstraints, &m_pendingConstraints)) {
-        qCDebug(SCREENCAST, "ext: buffer constraints changed");
-        updateStreamParam();
+    if (isTerminalState()) {
         return;
     }
+
+    if (!m_collectingConstraints) {
+        failStream(QStringLiteral("Compositor sent an empty constraints batch"));
+        return;
+    }
+
+    m_collectingConstraints = false;
+    m_constraintBatch.generation = m_nextConstraintGeneration++;
+
+    QString error;
+    if (!validateConstraints(m_constraintBatch, &error)) {
+        failStream(QStringLiteral("Invalid image-copy constraints: %1").arg(error));
+        return;
+    }
+
+    qCInfo(SCREENCAST) << "xdpw: received constraints generation"
+                       << m_constraintBatch.generation
+                       << m_constraintBatch.width << "x" << m_constraintBatch.height
+                       << "SHM formats" << m_constraintBatch.shmFormats.size()
+                       << "DMA-BUF formats" << m_constraintBatch.dmaBufFormats.size();
+
+    m_pendingConstraints = std::move(m_constraintBatch);
+    if (m_transaction) {
+        qCInfo(SCREENCAST) << "xdpw: deferring constraints until transaction"
+                           << m_transaction->id << "finishes";
+    } else if (m_reconfiguringBuffers) {
+        qCInfo(SCREENCAST) << "xdpw: coalescing constraints while buffer generation"
+                           << m_bufferGeneration << "is being configured";
+    }
+
+    // A queued hand-off coalesces complete constraint batches dispatched in
+    // the same event-loop turn. Correctness does not depend on a timeout: an
+    // active frame transaction or PipeWire buffer reconfiguration remains the
+    // hard serialization boundary.
+    schedulePendingConstraints();
 }
 
 void AbstractPipeWireStream::handleCaptureSessionStopped()
 {
-    qCCritical(SCREENCAST, "ext: session_stopped handler");
-    Q_EMIT failed("capture session stopped");
+    if (isTerminalState()) {
+        return;
+    }
+
+    qCWarning(SCREENCAST) << "xdpw: image-copy session stopped";
+    failStream(QStringLiteral("Image-copy capture session stopped"));
+}
+
+void AbstractPipeWireStream::startFrameCapture()
+{
+    if (!m_transaction || !m_session || m_state != LifecycleState::Streaming) {
+        if (m_transaction) {
+            finishTransaction(false, "capture cannot start in current state");
+        }
+        return;
+    }
+
+    ext_image_copy_capture_frame_v1 *frameObject = m_session->create_frame();
+    if (!frameObject) {
+        finishTransaction(false, "compositor did not create a frame object");
+        return;
+    }
+
+    auto *frame = new ImageCopyCaptureFrame(frameObject, this);
+    m_transaction->captureFrame = frame;
+    connect(frame, &ImageCopyCaptureFrame::transformChanged,
+            this, &AbstractPipeWireStream::handleFrameTransform);
+    connect(frame, &ImageCopyCaptureFrame::presentationTimeChanged,
+            this, &AbstractPipeWireStream::handleFramePresentationTime);
+    connect(frame, &ImageCopyCaptureFrame::ready,
+            this, &AbstractPipeWireStream::handleFrameReady);
+    connect(frame, &ImageCopyCaptureFrame::failed,
+            this, &AbstractPipeWireStream::handleFrameFailed);
+
+    frame->attach_buffer(m_transaction->sourceBuffer->waylandBuffer);
+    frame->damage_buffer(0,
+                         0,
+                         static_cast<int32_t>(m_transaction->sourceBuffer->width),
+                         static_cast<int32_t>(m_transaction->sourceBuffer->height));
+    frame->capture();
+
+    qCDebug(SCREENCAST) << "xdpw: transaction" << m_transaction->id
+                        << "capture requested for PipeWire buffer"
+                        << m_transaction->pipeWireBuffer;
 }
 
 void AbstractPipeWireStream::handleFrameTransform(uint32_t transform)
 {
-    qCDebug(SCREENCAST, "ext: transform handler %u", transform);
-    m_currentFrame.transformation = transform;
-}
-
-void AbstractPipeWireStream::handleFrameDamage(int32_t x, int32_t y, int32_t width, int32_t height)
-{
-    qCDebug(SCREENCAST) << "ext: damage:" << x << y << width << height;
-
-    foreach(PipeWireSourceBuffer *buffer, m_buffers) {
-        buffer->damage += QRect(x, y, width, height);
+    if (!m_transaction) {
+        return;
     }
+    if (transform > WL_OUTPUT_TRANSFORM_FLIPPED_270) {
+        qCWarning(SCREENCAST) << "xdpw: transaction" << m_transaction->id
+                              << "received invalid transform" << transform;
+        return;
+    }
+    m_transaction->transform = transform;
+    m_transaction->transformReceived = true;
 }
 
-void AbstractPipeWireStream::handleFramePresentationTime(uint32_t tv_sec_hi, uint32_t tv_sec_lo, uint32_t tv_nsec)
+void AbstractPipeWireStream::handleFramePresentationTime(uint32_t tvSecHi,
+                                                         uint32_t tvSecLo,
+                                                         uint32_t tvNsec)
 {
-    m_currentFrame.tv_sec = ((((uint64_t)tv_sec_hi) << 32) | tv_sec_lo);
-    m_currentFrame.tv_nsec = tv_nsec;
+    if (!m_transaction) {
+        return;
+    }
 
-    qCDebug(SCREENCAST) << "ext: timestamp" << m_currentFrame.tv_sec << ":" << m_currentFrame.tv_nsec ;
+    m_transaction->presentationSeconds =
+            (static_cast<uint64_t>(tvSecHi) << 32) | tvSecLo;
+    m_transaction->presentationNanoseconds = tvNsec;
+    m_transaction->timestampReceived = tvNsec < s_nanosecondsPerSecond;
 }
 
 void AbstractPipeWireStream::handleFrameReady()
 {
-    fps_limit_measure_start(&fps_limit, m_framerate);
-    m_frameState = XDPW_FRAME_STATE_SUCCESS;
-    destroyImageCaptureFrame();
-    PipeWireSourceBuffer *buffer = m_currentFrame.pipeWireSourceBuffer;
-    enqueueBuffer();
-    if (buffer) {
-        buffer->damage = QRegion();
+    if (!m_transaction) {
+        qCWarning(SCREENCAST) << "xdpw: received ready without an active transaction";
+        return;
     }
+
+    const bool validMetadata = m_transaction->timestampReceived
+            && m_transaction->transformReceived;
+    finishTransaction(validMetadata,
+                      validMetadata ? "frame ready" : "frame ready with incomplete metadata");
 }
 
 void AbstractPipeWireStream::handleFrameFailed(uint32_t reason)
 {
-    m_frameState = XDPW_FRAME_STATE_FAILED;
-    destroyImageCaptureFrame();
+    if (!m_transaction) {
+        qCWarning(SCREENCAST) << "xdpw: received failed without an active transaction";
+        return;
+    }
 
-    switch (reason) {
-    case EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_UNKNOWN:
-        qCCritical(SCREENCAST, "ext: frame capture failed: unknown reason");
+    const bool bufferConstraintsChanged =
+            reason == EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_BUFFER_CONSTRAINTS;
+    const QByteArray reasonText = frameFailureReason(reason).toUtf8();
+    finishTransaction(false, reasonText.constData());
+
+    // The protocol requires the client to re-allocate its buffers against the
+    // latest constraints. It does not require the compositor to send a fresh
+    // constraints batch after reporting this failure.
+    if (!bufferConstraintsChanged
+        || isTerminalState()
+        || m_reconfiguringBuffers) {
         return;
-    case EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_BUFFER_CONSTRAINTS:
-        qCCritical(SCREENCAST, "ext: frame capture failed: buffer constraint mismatch");
-        enqueueBuffer();
+    }
+
+    if (m_pendingConstraints) {
+        // When a complete newer constraints batch is already pending, the
+        // queued latest-wins path will reconfigure against it. This flag is
+        // required even if that batch is byte-for-byte equal: BUFFER_CONSTRAINTS
+        // explicitly tells the client to re-allocate. Treating the old buffer's
+        // modifier as rejected here would mutate the capabilities of the wrong
+        // constraints generation.
+        m_pendingConstraintsRequireReconfiguration = true;
         return;
-    case EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_STOPPED:
-        qCCritical(SCREENCAST, "ext: frame capture failed: capture session stopped");
-        return;
-    default:
-        qCCritical(SCREENCAST, "ext: frame capture failed: undefined failed reason");
+    }
+
+    if (m_negotiatedFormat
+        && m_negotiatedFormat->transport == BufferTransport::DmaBuf) {
+        const QVector<uint64_t> rejectedModifiers{
+            m_negotiatedFormat->modifier,
+        };
+        if (rejectDmaBufModifiers(m_negotiatedFormat->spaFormat,
+                                  rejectedModifiers)) {
+            qCWarning(SCREENCAST)
+                    << "xdpw: compositor rejected DMA-BUF modifier"
+                    << Qt::hex << m_negotiatedFormat->modifier << Qt::dec;
+        }
+    }
+
+    if (!beginBufferReconfiguration("compositor rejected capture buffer")) {
+        failStream(QStringLiteral("Failed to re-allocate rejected capture buffers"));
     }
 }
 
-void AbstractPipeWireStream::handleTimeOut()
+void AbstractPipeWireStream::destroyCaptureFrame()
 {
-    startframeCapture();
+    if (!m_transaction || !m_transaction->captureFrame) {
+        return;
+    }
+
+    ImageCopyCaptureFrame *frame = m_transaction->captureFrame;
+    m_transaction->captureFrame = nullptr;
+    QObject::disconnect(frame, nullptr, this, nullptr);
+    frame->destroy();
+    frame->deleteLater();
 }
 
-void AbstractPipeWireStream::updateStreamParam()
+void AbstractPipeWireStream::cancelTransaction(const char *reason)
 {
-    qCDebug(SCREENCAST, "pipewire: stream update parameters");
+    if (!m_transaction) {
+        return;
+    }
+
+    qCInfo(SCREENCAST) << "xdpw: cancelling transaction" << m_transaction->id
+                       << reason;
+    destroyCaptureFrame();
+    m_transaction.reset();
+}
+
+void AbstractPipeWireStream::finishTransaction(bool validFrame, const char *reason)
+{
+    if (!m_transaction) {
+        return;
+    }
+
+    const uint64_t transactionId = m_transaction->id;
+    pw_buffer *pipeWireBuffer = m_transaction->pipeWireBuffer;
+    PipeWireSourceBuffer *sourceBuffer = m_transaction->sourceBuffer;
+    uint32_t transform = m_transaction->transform;
+
+    bool validTimestamp = false;
+    uint64_t pts = transactionPresentationTime(&validTimestamp);
+    validFrame = validFrame && validTimestamp;
+    if (!validTimestamp) {
+        pts = monotonicTimeNanoseconds();
+        transform = WL_OUTPUT_TRANSFORM_NORMAL;
+    }
+    pts = normalizePresentationTime(pts);
+
+    destroyCaptureFrame();
+    m_transaction.reset();
+
+    qCDebug(SCREENCAST) << "xdpw: finishing transaction" << transactionId
+                        << (validFrame ? "valid" : "corrupted")
+                        << reason << "pts" << pts;
+    queueBuffer(pipeWireBuffer, sourceBuffer, validFrame, pts, transform);
+    schedulePendingConstraints();
+}
+
+void AbstractPipeWireStream::refreshDmaBufCapabilities()
+{
+    m_usableDmaBufFormats.clear();
+
+    if (!m_activeConstraints.dmaBufDevice
+        || m_activeConstraints.dmaBufFormats.isEmpty()
+        || !m_context
+        || !m_context->m_linuxDmaBuf
+        || !m_context->linuxDmaBufInterfaceActive()) {
+        m_dmaBufDevice.reset();
+        return;
+    }
+
+    if (!m_dmaBufDevice
+        || m_dmaBufDevice->deviceId != *m_activeConstraints.dmaBufDevice) {
+        m_dmaBufDevice = createDmaBufDevice(*m_activeConstraints.dmaBufDevice);
+    }
+    if (!m_dmaBufDevice) {
+        qCWarning(SCREENCAST)
+                << "xdpw: compositor advertised DMA-BUF but its DRM device is unavailable";
+        return;
+    }
+
+    for (const DmaBufFormat &format : std::as_const(m_activeConstraints.dmaBufFormats)) {
+        DmaBufFormat usableFormat;
+        usableFormat.drmFormat = format.drmFormat;
+        usableFormat.spaFormat = format.spaFormat;
+
+        for (uint64_t modifier : format.modifiers) {
+            if (modifier == DRM_FORMAT_MOD_INVALID
+                || modifier == DRM_FORMAT_MOD_LINEAR
+                || gbm_device_get_format_modifier_plane_count(
+                           m_dmaBufDevice->gbm,
+                           format.drmFormat,
+                           modifier) > 0) {
+                usableFormat.modifiers.append(modifier);
+            }
+        }
+
+        // Avoid publishing a DMA-BUF format when even its best currently
+        // advertised modifier cannot be allocated. Only one successful probe
+        // is needed here; the exact consumer-selected modifier is tested again
+        // during fixation.
+        bool allocationAvailable = false;
+        for (uint64_t modifier : std::as_const(usableFormat.modifiers)) {
+            gbm_bo *testBo = allocateDmaBufBo(m_dmaBufDevice,
+                                              m_activeConstraints.width,
+                                              m_activeConstraints.height,
+                                              format.drmFormat,
+                                              modifier);
+            if (testBo) {
+                gbm_bo_destroy(testBo);
+                allocationAvailable = true;
+                break;
+            }
+        }
+
+        if (allocationAvailable) {
+            m_usableDmaBufFormats.append(std::move(usableFormat));
+        }
+    }
+}
+
+std::shared_ptr<AbstractPipeWireStream::DmaBufDevice>
+AbstractPipeWireStream::createDmaBufDevice(dev_t deviceId) const
+{
+    drmDevice *drmDeviceInfo = nullptr;
+    const int resolveResult =
+            drmGetDeviceFromDevId(deviceId, 0, &drmDeviceInfo);
+    if (resolveResult != 0 || !drmDeviceInfo) {
+        if (drmDeviceInfo) {
+            drmFreeDevice(&drmDeviceInfo);
+        }
+        qCWarning(SCREENCAST) << "xdpw: failed to resolve compositor DRM device";
+        return {};
+    }
+
+    const char *node = nullptr;
+    if ((drmDeviceInfo->available_nodes & (1 << DRM_NODE_RENDER)) != 0) {
+        node = drmDeviceInfo->nodes[DRM_NODE_RENDER];
+    } else if ((drmDeviceInfo->available_nodes & (1 << DRM_NODE_PRIMARY)) != 0) {
+        node = drmDeviceInfo->nodes[DRM_NODE_PRIMARY];
+    }
+
+    if (!node) {
+        qCWarning(SCREENCAST) << "xdpw: compositor DRM device has no usable node";
+        drmFreeDevice(&drmDeviceInfo);
+        return {};
+    }
+
+    const QByteArray nodePath(node);
+    drmFreeDevice(&drmDeviceInfo);
+
+    const int fd = open(nodePath.constData(), O_RDWR | O_CLOEXEC);
+    if (fd < 0) {
+        qCWarning(SCREENCAST) << "xdpw: failed to open compositor DRM node"
+                              << nodePath;
+        return {};
+    }
+
+    gbm_device *gbm = gbm_create_device(fd);
+    if (!gbm) {
+        qCWarning(SCREENCAST) << "xdpw: failed to create GBM device for"
+                              << nodePath;
+        close(fd);
+        return {};
+    }
+
+    auto device = std::make_shared<DmaBufDevice>();
+    device->deviceId = deviceId;
+    device->fd = fd;
+    device->gbm = gbm;
+    qCInfo(SCREENCAST) << "xdpw: DMA-BUF device ready" << nodePath;
+    return device;
+}
+
+gbm_bo *AbstractPipeWireStream::allocateDmaBufBo(
+        const std::shared_ptr<DmaBufDevice> &device,
+        uint32_t width,
+        uint32_t height,
+        uint32_t drmFormat,
+        uint64_t modifier) const
+{
+    if (!device || !device->gbm || width == 0 || height == 0
+        || drmFormat == DRM_FORMAT_INVALID) {
+        return nullptr;
+    }
+
+    constexpr uint32_t renderingFlags = GBM_BO_USE_RENDERING;
+    gbm_bo *bo = nullptr;
+    bool linearLegacyAllocation = false;
+    if (modifier == DRM_FORMAT_MOD_INVALID) {
+        bo = gbm_bo_create(device->gbm,
+                           width,
+                           height,
+                           drmFormat,
+                           renderingFlags);
+    } else {
+        bo = gbm_bo_create_with_modifiers2(device->gbm,
+                                           width,
+                                           height,
+                                           drmFormat,
+                                           &modifier,
+                                           1,
+                                           renderingFlags);
+        if (!bo && modifier == DRM_FORMAT_MOD_LINEAR) {
+            bo = gbm_bo_create(device->gbm,
+                               width,
+                               height,
+                               drmFormat,
+                               renderingFlags | GBM_BO_USE_LINEAR);
+            linearLegacyAllocation = bo != nullptr;
+        }
+    }
+
+    if (!bo) {
+        return nullptr;
+    }
+
+    const int planeCount = gbm_bo_get_plane_count(bo);
+    const uint64_t actualModifier = gbm_bo_get_modifier(bo);
+    const bool geometryMatches = gbm_bo_get_width(bo) == width
+            && gbm_bo_get_height(bo) == height
+            && gbm_bo_get_format(bo) == drmFormat;
+    const bool modifierMatches = modifier == DRM_FORMAT_MOD_INVALID
+            || actualModifier == modifier
+            || (modifier == DRM_FORMAT_MOD_LINEAR && linearLegacyAllocation);
+    if (!geometryMatches || !modifierMatches
+        || planeCount <= 0 || planeCount > GBM_MAX_PLANES) {
+        gbm_bo_destroy(bo);
+        return nullptr;
+    }
+    return bo;
+}
+
+std::optional<AbstractPipeWireStream::NegotiatedFormat>
+AbstractPipeWireStream::selectDmaBufFormat(
+        spa_video_format spaFormat,
+        const QVector<uint64_t> &modifiers) const
+{
+    if (!m_dmaBufDevice || modifiers.isEmpty()) {
+        return std::nullopt;
+    }
+
+    const auto tryModifier = [this, spaFormat](
+                                     const DmaBufFormat &format,
+                                     uint64_t modifier)
+            -> std::optional<NegotiatedFormat> {
+        if (format.spaFormat != spaFormat
+            || !format.modifiers.contains(modifier)) {
+            return std::nullopt;
+        }
+
+        gbm_bo *testBo = allocateDmaBufBo(m_dmaBufDevice,
+                                          m_activeConstraints.width,
+                                          m_activeConstraints.height,
+                                          format.drmFormat,
+                                          modifier);
+        if (!testBo) {
+            return std::nullopt;
+        }
+        const int planeCount = gbm_bo_get_plane_count(testBo);
+        gbm_bo_destroy(testBo);
+        if (planeCount <= 0 || planeCount > GBM_MAX_PLANES) {
+            return std::nullopt;
+        }
+
+        NegotiatedFormat result;
+        result.transport = BufferTransport::DmaBuf;
+        result.drmFormat = format.drmFormat;
+        result.spaFormat = format.spaFormat;
+        result.width = m_activeConstraints.width;
+        result.height = m_activeConstraints.height;
+        result.modifier = modifier;
+        result.planeCount = static_cast<uint32_t>(planeCount);
+        result.constraintsGeneration = m_activeConstraints.generation;
+        result.dmaBufDevice = m_dmaBufDevice;
+        return result;
+    };
+
+    // Explicit modifiers are preferable. DRM_FORMAT_MOD_INVALID is an
+    // implicit-modifier compatibility fallback and is tried last.
+    for (bool implicitPass : {false, true}) {
+        for (const DmaBufFormat &format : m_usableDmaBufFormats) {
+            for (uint64_t modifier : modifiers) {
+                if ((modifier == DRM_FORMAT_MOD_INVALID) != implicitPass) {
+                    continue;
+                }
+                if (std::optional<NegotiatedFormat> result =
+                            tryModifier(format, modifier)) {
+                    return result;
+                }
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+bool AbstractPipeWireStream::rejectDmaBufModifiers(
+        spa_video_format spaFormat,
+        const QVector<uint64_t> &modifiers)
+{
+    bool removed = false;
+    for (DmaBufFormat &format : m_usableDmaBufFormats) {
+        if (format.spaFormat != spaFormat) {
+            continue;
+        }
+
+        const auto newEnd =
+                std::remove_if(format.modifiers.begin(),
+                               format.modifiers.end(),
+                               [&modifiers](uint64_t modifier) {
+                                   return modifiers.contains(modifier);
+                               });
+        removed = removed || newEnd != format.modifiers.end();
+        format.modifiers.erase(newEnd, format.modifiers.end());
+    }
+
+    m_usableDmaBufFormats.erase(
+            std::remove_if(m_usableDmaBufFormats.begin(),
+                           m_usableDmaBufFormats.end(),
+                           [](const DmaBufFormat &format) {
+                               return format.modifiers.isEmpty();
+                           }),
+            m_usableDmaBufFormats.end());
+    return removed;
+}
+
+QVector<QByteArray> AbstractPipeWireStream::buildStreamFormatPods() const
+{
+    QVector<QByteArray> result;
+    result.reserve(m_usableDmaBufFormats.size()
+                   + m_activeConstraints.shmFormats.size() * 2
+                   + (m_pendingDmaBufSelection ? 1 : 0));
+
+    const QVector<uint64_t> noModifiers;
+    const auto appendPod = [&result](std::optional<QByteArray> pod) {
+        if (pod) {
+            result.append(std::move(*pod));
+            return true;
+        }
+        return false;
+    };
+
+    if (m_pendingDmaBufSelection
+        && m_pendingDmaBufSelection->width == m_activeConstraints.width
+        && m_pendingDmaBufSelection->height == m_activeConstraints.height
+        && m_pendingDmaBufSelection->constraintsGeneration
+                == m_activeConstraints.generation
+        && !appendPod(buildFormatPod(m_pendingDmaBufSelection->spaFormat,
+                                     m_activeConstraints.width,
+                                     m_activeConstraints.height,
+                                     m_maxFramerate,
+                                     noModifiers,
+                                     m_pendingDmaBufSelection->modifier))) {
+        return {};
+    }
+
+    for (const DmaBufFormat &format : m_usableDmaBufFormats) {
+        if (!appendPod(buildFormatPod(format.spaFormat,
+                                      m_activeConstraints.width,
+                                      m_activeConstraints.height,
+                                      m_maxFramerate,
+                                      format.modifiers))) {
+            return {};
+        }
+    }
+    QVector<spa_video_format> advertisedShmFormats;
+    advertisedShmFormats.reserve(m_activeConstraints.shmFormats.size() * 2);
+    for (const ShmFormat &format : m_activeConstraints.shmFormats) {
+        for (spa_video_format spaFormat :
+             compatibleShmSpaFormats(format.spaFormat)) {
+            if (advertisedShmFormats.contains(spaFormat)) {
+                continue;
+            }
+            if (!appendPod(buildFormatPod(spaFormat,
+                                          m_activeConstraints.width,
+                                          m_activeConstraints.height,
+                                          m_maxFramerate,
+                                          noModifiers))) {
+                return {};
+            }
+            advertisedShmFormats.append(spaFormat);
+        }
+    }
+    return result;
+}
+
+bool AbstractPipeWireStream::createStream()
+{
+    if (m_stream || !m_pipeWireCore || !m_pipeWireCore->isValid()) {
+        return false;
+    }
+
+    m_stream = pw_stream_new(m_pipeWireCore->m_pwCore,
+                             "xdpw-dde-screencast",
+                             pw_properties_new(PW_KEY_MEDIA_CLASS,
+                                               "Video/Source",
+                                               nullptr));
     if (!m_stream) {
-        return;
+        return false;
     }
-    uint8_t params_buffer[2048];
-    struct spa_pod_dynamic_builder builder;
-    spa_pod_dynamic_builder_init(&builder, params_buffer, sizeof(params_buffer[0]), 2048);
 
-    struct wl_array params;
-    wl_array_init(&params);
-    buildFormats(&builder.b, &params);
+    pw_stream_add_listener(m_stream, &m_streamListener, &s_streamEvents, this);
 
-    pw_stream_update_params(m_stream, static_cast<const struct spa_pod **>(params.data), params.size / sizeof(struct spa_pod *));
-    spa_pod_dynamic_builder_clean(&builder);
-    wl_array_release(&params);
-}
-
-void AbstractPipeWireStream::createStream()
-{
-    uint8_t buffer[2 * 1024];
-    struct spa_pod_dynamic_builder builder;
-    spa_pod_dynamic_builder_init(&builder, buffer, sizeof(buffer), 2048);
-
-    char name[] = "xdpw-stream-XXXXXX";
-    randname(name + strlen(name) - 6);
-    m_stream = pw_stream_new(m_context->m_pwCore->m_pwCore, name,
-                             pw_properties_new(
-                                     PW_KEY_MEDIA_CLASS, "Video/Source",
-                                     nullptr));
-
-    if (!m_stream) {
-        qCFatal(SCREENCAST, "pipewire: failed to create stream");
+    const QVector<QByteArray> formatPods = buildStreamFormatPods();
+    QVarLengthArray<const spa_pod *, 16> params;
+    params.reserve(formatPods.size());
+    for (const QByteArray &pod : formatPods) {
+        params.append(reinterpret_cast<const spa_pod *>(pod.constData()));
     }
-    m_isStreaming = false;
+    if (params.isEmpty()) {
+        destroyStream();
+        return false;
+    }
 
-    struct wl_array params;
-    wl_array_init(&params);
-    buildFormats(&builder.b, &params);
+    const int result = pw_stream_connect(m_stream,
+                                         PW_DIRECTION_OUTPUT,
+                                         PW_ID_ANY,
+                                         PW_STREAM_FLAG_ALLOC_BUFFERS,
+                                         params.data(),
+                                         static_cast<uint32_t>(params.size()));
+    if (result < 0) {
+        qCWarning(SCREENCAST) << "xdpw: pw_stream_connect failed"
+                              << spa_strerror(result);
+        destroyStream();
+        return false;
+    }
 
-    fps_limit_measure_start(&fps_limit, m_framerate);
-    pw_stream_add_listener(m_stream, &m_streamListener,
-                           &pwr_stream_events, this);
-
-    pw_stream_connect(m_stream,
-                      PW_DIRECTION_OUTPUT,
-                      PW_ID_ANY,
-                      PW_STREAM_FLAG_ALLOC_BUFFERS,
-                      static_cast<const struct spa_pod **>(params.data),
-                      params.size / sizeof(struct spa_pod *));
-
-    spa_pod_dynamic_builder_clean(&builder);
-    wl_array_release(&params);
+    qCInfo(SCREENCAST) << "xdpw: PipeWire stream connecting with"
+                       << m_usableDmaBufFormats.size() << "DMA-BUF formats and"
+                       << m_activeConstraints.shmFormats.size()
+                       << "SHM formats; max framerate"
+                       << m_maxFramerate;
+    return true;
 }
 
 void AbstractPipeWireStream::destroyStream()
@@ -1063,225 +1696,484 @@ void AbstractPipeWireStream::destroyStream()
         return;
     }
 
-    qCDebug(SCREENCAST, "pipewire: destroying stream");
-    pw_stream_flush(m_stream, false);
-    pw_stream_disconnect(m_stream);
-    pw_stream_destroy(m_stream);
+    pw_stream *stream = m_stream;
     m_stream = nullptr;
+    pw_stream_destroy(stream);
+    m_streamListener = {};
 }
 
-void AbstractPipeWireStream::buildModifierList(uint32_t drm_format, uint64_t **modifiers, uint32_t *modifier_count)
+bool AbstractPipeWireStream::updateStreamFormats()
 {
-    *modifier_count = countDmabufModifiers(drm_format);
-    if (*modifier_count == 0) {
-        qCWarning(SCREENCAST, "wlroots: no modifiers available for format %u", drm_format);
-        *modifiers = nullptr;
-        return;
+    if (!m_stream) {
+        return false;
     }
 
-    *modifiers = static_cast<uint64_t*>(calloc(*modifier_count, sizeof(uint64_t)));
-    queryDmabufModifiers(drm_format, *modifiers, *modifier_count);
-    qCDebug(SCREENCAST) << "wlroots: num_modifiers" << modifier_count;
-}
-
-void AbstractPipeWireStream::queryDmabufModifiers(uint32_t drm_format, uint64_t *modifiers, uint32_t num_modifiers)
-{
-    uint32_t idx = 0;
-    struct gbm_device *gbm = m_currentConstraints.gbm;
-    foreach (struct DRMFormatModifierPair *fm_pair, std::as_const(m_currentConstraints.dmabuf_format_modifier_pairs)) {
-        if (fm_pair->fourcc == drm_format &&
-            (fm_pair->modifier == DRM_FORMAT_MOD_INVALID ||
-             gbm_device_get_format_modifier_plane_count(gbm, fm_pair->fourcc, fm_pair->modifier) > 0)) {
-            assert(idx < num_modifiers);
-            modifiers[idx] = fm_pair->modifier;
-            idx++;
-        }
-    }
-}
-
-uint32_t AbstractPipeWireStream::countDmabufModifiers(uint32_t drm_format)
-{
-    struct PipewireBufferConstraints *constraints = &m_currentConstraints;
-
-    uint32_t modifiers = 0;
-    struct gbm_device *gbm = m_currentConstraints.gbm;
-    foreach (struct DRMFormatModifierPair *fm_pair, std::as_const(constraints->dmabuf_format_modifier_pairs)) {
-        if (fm_pair->fourcc == drm_format &&
-            (fm_pair->modifier == DRM_FORMAT_MOD_INVALID ||
-             gbm_device_get_format_modifier_plane_count(gbm, fm_pair->fourcc, fm_pair->modifier) > 0))
-            modifiers += 1;
+    const QVector<QByteArray> formatPods = buildStreamFormatPods();
+    QVarLengthArray<const spa_pod *, 16> params;
+    params.reserve(formatPods.size());
+    for (const QByteArray &pod : formatPods) {
+        params.append(reinterpret_cast<const spa_pod *>(pod.constData()));
     }
 
-    return modifiers;
+    return !params.isEmpty()
+            && pw_stream_update_params(m_stream,
+                                       params.data(),
+                                       static_cast<uint32_t>(params.size())) >= 0;
 }
 
-PipeWireSourceBuffer *AbstractPipeWireStream::createPipeWireSourceBuffer(PortalCommon::BufferType bufferType)
+bool AbstractPipeWireStream::isCurrentNegotiatedFormat() const
 {
-    PipeWireSourceBuffer *buffer = new PipeWireSourceBuffer;
+    return m_negotiatedFormat
+            && m_negotiatedFormat->width == m_activeConstraints.width
+            && m_negotiatedFormat->height == m_activeConstraints.height
+            && m_negotiatedFormat->constraintsGeneration
+                    == m_activeConstraints.generation;
+}
 
-    uint32_t format = PipeWireutils::drmFourccFromPipewireFormat(m_pipewireVideoInfo.format);
-    assert(format != DRM_FORMAT_INVALID);
+bool AbstractPipeWireStream::updateStreamBufferParams()
+{
+    if (!m_stream || !isCurrentNegotiatedFormat()) {
+        return false;
+    }
 
-    buffer->width = m_currentConstraints.width;
-    buffer->height = m_currentConstraints.height;
-    buffer->bufferType = bufferType;
-    buffer->format = format;
-
-    struct xdpw_shm_format *fmt = nullptr;
-    bool found = false;
-    struct gbm_device *gbm = m_currentConstraints.gbm;
-
-    switch (bufferType) {
-    case PortalCommon::SHM:
-        foreach (struct xdpw_shm_format *tmp, m_currentConstraints.shm_formats) {
-            if (tmp->fourcc == format) {
-                found = true;
-                fmt = tmp;
-                break;
-            }
+    uint32_t blocks = m_negotiatedFormat->planeCount;
+    uint32_t dataType = 1U << SPA_DATA_DmaBuf;
+    uint32_t size = 0;
+    uint32_t stride = 0;
+    if (m_negotiatedFormat->transport == BufferTransport::Shm) {
+        const uint64_t unalignedStride =
+                static_cast<uint64_t>(m_negotiatedFormat->width)
+                * m_negotiatedFormat->bytesPerPixel;
+        const uint64_t alignedStride =
+                (unalignedStride + 3U) & ~uint64_t(3U);
+        const uint64_t bufferSize =
+                alignedStride * m_negotiatedFormat->height;
+        if (alignedStride > static_cast<uint64_t>(INT_MAX)
+            || bufferSize > static_cast<uint64_t>(INT_MAX)) {
+            return false;
         }
-        if (!found) {
-            qCCritical(PIPEWIRE, "xdpw: unable to find format: %d", format);
-            destroyPipeWireSourceBuffer(buffer);
-            return nullptr;
-        }
+        blocks = 1;
+        dataType = 1U << SPA_DATA_MemFd;
+        stride = static_cast<uint32_t>(alignedStride);
+        size = static_cast<uint32_t>(bufferSize);
+    } else if (blocks == 0 || blocks > GBM_MAX_PLANES) {
+        return false;
+    }
 
-        buffer->planeCount = 1;
-        buffer->size[0] = fmt->stride * buffer->height;
-        buffer->stride[0] = fmt->stride;
-        buffer->offset[0] = 0;
-        buffer->fd[0] = anonymous_shm_open();
-        if (buffer->fd[0] == -1) {
-            qCCritical(PIPEWIRE, "xdpw: unable to create anonymous filedescriptor");
-            destroyPipeWireSourceBuffer(buffer);
-            return nullptr;
-        }
+    uint8_t podStorage[2048];
+    spa_pod_builder builder = SPA_POD_BUILDER_INIT(podStorage, sizeof(podStorage));
+    QVarLengthArray<const spa_pod *, 4> params;
+    params.append(buildBufferParam(&builder,
+                                   blocks,
+                                   dataType,
+                                   size,
+                                   stride));
+    params.append(static_cast<spa_pod *>(
+            spa_pod_builder_add_object(&builder,
+                                       SPA_TYPE_OBJECT_ParamMeta,
+                                       SPA_PARAM_Meta,
+                                       SPA_PARAM_META_type,
+                                       SPA_POD_Id(SPA_META_Header),
+                                       SPA_PARAM_META_size,
+                                       SPA_POD_Int(sizeof(spa_meta_header)))));
+    params.append(static_cast<spa_pod *>(
+            spa_pod_builder_add_object(&builder,
+                                       SPA_TYPE_OBJECT_ParamMeta,
+                                       SPA_PARAM_Meta,
+                                       SPA_PARAM_META_type,
+                                       SPA_POD_Id(SPA_META_VideoTransform),
+                                       SPA_PARAM_META_size,
+                                       SPA_POD_Int(sizeof(spa_meta_videotransform)))));
 
-        if (ftruncate(buffer->fd[0], buffer->size[0]) < 0) {
-            qCCritical(PIPEWIRE, "xdpw: unable to truncate filedescriptor");
-            destroyPipeWireSourceBuffer(buffer);
-            return nullptr;
-        }
+    return pw_stream_update_params(m_stream,
+                                   params.data(),
+                                   static_cast<uint32_t>(params.size())) >= 0;
+}
 
-        buffer->buffer =  m_context->createWLSHMBuffer(buffer->fd[0],
-                                                      PipeWireutils::wlShmFormatFromDRMFormat(format),
-                                                      buffer->width,
-                                                      buffer->height,
-                                                      fmt->stride);
+bool AbstractPipeWireStream::beginBufferReconfiguration(const char *reason)
+{
+    if (!m_stream) {
+        return false;
+    }
+    if (m_reconfiguringBuffers) {
+        return true;
+    }
+    if (m_bufferGeneration == std::numeric_limits<uint64_t>::max()) {
+        return false;
+    }
 
-        if (!buffer->buffer) {
-            qCCritical(PIPEWIRE, "xdpw: unable to create wl_buffer");
-            close(buffer->fd[0]);
-            delete buffer;
-            return nullptr;
-        }
-        break;
-    case PortalCommon::DMABUF:;
-        struct gbm_bo *bo;
-        uint32_t flags = GBM_BO_USE_RENDERING;
-        if (m_pipewireVideoInfo.modifier != DRM_FORMAT_MOD_INVALID) {
-            uint64_t *modifiers = (uint64_t*)&m_pipewireVideoInfo.modifier;
-            bo = gbm_bo_create_with_modifiers2(gbm, buffer->width, buffer->height,
-                                               format, modifiers, 1, flags);
-        } else {
-            if (m_forceModLinear) {
-                flags |= GBM_BO_USE_LINEAR;
-            }
-            bo = gbm_bo_create(gbm, buffer->width, buffer->height, format, flags);
-        }
+    ++m_bufferGeneration;
+    m_reconfiguringBuffers = true;
+    m_negotiatedFormat.reset();
+    m_pendingDmaBufSelection.reset();
 
-        if (!bo && m_pipewireVideoInfo.modifier == DRM_FORMAT_MOD_LINEAR) {
-            bo = gbm_bo_create(gbm, buffer->width, buffer->height,
-                               format, flags | GBM_BO_USE_LINEAR);
-        }
+    qCInfo(SCREENCAST) << "xdpw: beginning buffer reconfiguration"
+                       << reason
+                       << "constraints generation" << m_activeConstraints.generation
+                       << "buffer generation" << m_bufferGeneration;
 
-        if (!bo) {
-            qCCritical(PIPEWIRE, "xdpw: failed to create gbm_bo");
-            destroyPipeWireSourceBuffer(buffer);
-            return nullptr;
-        }
-        buffer->planeCount = gbm_bo_get_plane_count(bo);
+    if (!updateStreamFormats()) {
+        m_reconfiguringBuffers = false;
+        return false;
+    }
+    return true;
+}
 
-        struct zwp_linux_buffer_params_v1 *params = m_context->m_linuxDmaBuf->create_params();
-        if (!params) {
-            qCCritical(SCREENCAST, "failed to create linux_buffer_params");
-            gbm_bo_destroy(bo);
-            destroyPipeWireSourceBuffer(buffer);
+AbstractPipeWireStream::PipeWireSourceBuffer *
+AbstractPipeWireStream::createPipeWireSourceBuffer() const
+{
+    if (!m_context || !isCurrentNegotiatedFormat()) {
+        return nullptr;
+    }
+    return m_negotiatedFormat->transport == BufferTransport::DmaBuf
+            ? createDmaBufPipeWireSourceBuffer()
+            : createShmPipeWireSourceBuffer();
+}
 
-            return nullptr;
-        }
+AbstractPipeWireStream::PipeWireSourceBuffer *
+AbstractPipeWireStream::createShmPipeWireSourceBuffer() const
+{
+    if (!m_context || !isCurrentNegotiatedFormat()
+        || m_negotiatedFormat->transport != BufferTransport::Shm) {
+        return nullptr;
+    }
 
-        for (int plane = 0; plane < buffer->planeCount; plane++) {
-            buffer->size[plane] = 0;
-            buffer->stride[plane] = gbm_bo_get_stride_for_plane(bo, plane);
-            buffer->offset[plane] = gbm_bo_get_offset(bo, plane);
-            uint64_t mod = gbm_bo_get_modifier(bo);
-            buffer->fd[plane] = gbm_bo_get_fd_for_plane(bo, plane);
+    const uint64_t unalignedStride =
+            static_cast<uint64_t>(m_negotiatedFormat->width)
+            * m_negotiatedFormat->bytesPerPixel;
+    const uint64_t stride = (unalignedStride + 3U) & ~uint64_t(3U);
+    const uint64_t size = stride * m_negotiatedFormat->height;
+    if (stride > static_cast<uint64_t>(INT_MAX)
+        || size > static_cast<uint64_t>(INT_MAX)) {
+        return nullptr;
+    }
 
-            if (buffer->fd[plane] < 0) {
-                qCCritical(SCREENCAST, "failed to get file descriptor");
-                zwp_linux_buffer_params_v1_destroy(params);
-                gbm_bo_destroy(bo);
-                for (int plane_tmp = 0; plane_tmp < plane; plane_tmp++) {
-                    close(buffer->fd[plane_tmp]);
-                }
+    auto *buffer = new PipeWireSourceBuffer;
+    buffer->transport = BufferTransport::Shm;
+    buffer->planeCount = 1;
+    buffer->width = m_negotiatedFormat->width;
+    buffer->height = m_negotiatedFormat->height;
+    buffer->wlFormat = m_negotiatedFormat->wlFormat;
+    buffer->drmFormat = m_negotiatedFormat->drmFormat;
+    buffer->constraintsGeneration =
+            m_negotiatedFormat->constraintsGeneration;
+    buffer->bufferGeneration = m_bufferGeneration;
+    BufferPlane &plane = buffer->planes[0];
+    plane.stride = static_cast<uint32_t>(stride);
+    plane.maxSize = static_cast<uint32_t>(size);
+    plane.fd =
+            ScreenCastMemory::createSealedMemFd("xdpw-dde-screencast",
+                                                plane.maxSize);
+    if (plane.fd < 0) {
+        destroyPipeWireSourceBuffer(buffer);
+        return nullptr;
+    }
 
-                destroyPipeWireSourceBuffer(buffer);
-                return nullptr;
-            }
-
-            zwp_linux_buffer_params_v1_add(params,
-                                           buffer->fd[plane],
-                                           plane,
-                                           buffer->offset[plane],
-                                           buffer->stride[plane],
-                                           mod >> 32, mod & 0xffffffff);
-        }
-        buffer->buffer = zwp_linux_buffer_params_v1_create_immed(params,
-                                                                 buffer->width,
-                                                                 buffer->height,
-                                                                 buffer->format,
-                                                                 0);
-        zwp_linux_buffer_params_v1_destroy(params);
-
-        if (!buffer->buffer) {
-            qCCritical(SCREENCAST, "failed to create buffer");
-            gbm_bo_destroy(bo);
-            for (int plane = 0; plane < buffer->planeCount; plane++) {
-                close(buffer->fd[plane]);
-            }
-
-            destroyPipeWireSourceBuffer(buffer);
-            return nullptr;
-        }
+    buffer->waylandBuffer =
+            m_context->createWLSHMBuffer(plane.fd,
+                                         static_cast<wl_shm_format>(buffer->wlFormat),
+                                         static_cast<int>(buffer->width),
+                                         static_cast<int>(buffer->height),
+                                         static_cast<int>(plane.stride));
+    if (!buffer->waylandBuffer) {
+        destroyPipeWireSourceBuffer(buffer);
+        return nullptr;
     }
 
     return buffer;
 }
 
-void AbstractPipeWireStream::destroyPipeWireSourceBuffer(PipeWireSourceBuffer *buffer)
+AbstractPipeWireStream::PipeWireSourceBuffer *
+AbstractPipeWireStream::createDmaBufPipeWireSourceBuffer() const
 {
-    if (buffer->buffer) {
-        wl_buffer_destroy(buffer->buffer);
-    }
-    for (int plane = 0; plane < buffer->planeCount; plane++) {
-        close(buffer->fd[plane]);
+    if (!m_context || !m_context->m_linuxDmaBuf
+        || !m_context->linuxDmaBufInterfaceActive()
+        || !isCurrentNegotiatedFormat()
+        || m_negotiatedFormat->transport != BufferTransport::DmaBuf
+        || !m_negotiatedFormat->dmaBufDevice) {
+        return nullptr;
     }
 
+    auto *buffer = new PipeWireSourceBuffer;
+    buffer->transport = BufferTransport::DmaBuf;
+    buffer->width = m_negotiatedFormat->width;
+    buffer->height = m_negotiatedFormat->height;
+    buffer->drmFormat = m_negotiatedFormat->drmFormat;
+    buffer->modifier = m_negotiatedFormat->modifier;
+    buffer->constraintsGeneration =
+            m_negotiatedFormat->constraintsGeneration;
+    buffer->bufferGeneration = m_bufferGeneration;
+    buffer->dmaBufDevice = m_negotiatedFormat->dmaBufDevice;
+    buffer->gbmBo = allocateDmaBufBo(buffer->dmaBufDevice,
+                                     buffer->width,
+                                     buffer->height,
+                                     buffer->drmFormat,
+                                     buffer->modifier);
+    if (!buffer->gbmBo) {
+        destroyPipeWireSourceBuffer(buffer);
+        return nullptr;
+    }
+
+    const int planeCount = gbm_bo_get_plane_count(buffer->gbmBo);
+    if (planeCount <= 0
+        || planeCount > GBM_MAX_PLANES
+        || static_cast<uint32_t>(planeCount) != m_negotiatedFormat->planeCount) {
+        destroyPipeWireSourceBuffer(buffer);
+        return nullptr;
+    }
+    buffer->planeCount = static_cast<uint32_t>(planeCount);
+
+    for (uint32_t planeIndex = 0;
+         planeIndex < buffer->planeCount;
+         ++planeIndex) {
+        BufferPlane &plane = buffer->planes.at(planeIndex);
+        plane.fd = gbm_bo_get_fd_for_plane(buffer->gbmBo,
+                                           static_cast<int>(planeIndex));
+        if (plane.fd < 0 && buffer->planeCount == 1 && planeIndex == 0) {
+            plane.fd = gbm_bo_get_fd(buffer->gbmBo);
+        }
+        plane.stride = gbm_bo_get_stride_for_plane(
+                buffer->gbmBo, static_cast<int>(planeIndex));
+        plane.offset = gbm_bo_get_offset(buffer->gbmBo,
+                                         static_cast<int>(planeIndex));
+        if (plane.fd < 0
+            || plane.stride == 0
+            || plane.stride > static_cast<uint32_t>(INT_MAX)) {
+            destroyPipeWireSourceBuffer(buffer);
+            return nullptr;
+        }
+
+        // DMA-BUF allocation size is not generally queryable. PipeWire and
+        // consumers only require the first plane to carry non-zero video
+        // content; pitch * image height is the conservative convention also
+        // used by KWin. Per-plane offsets and pitches remain exact.
+        if (planeIndex == 0) {
+            const uint64_t maximumSize =
+                    static_cast<uint64_t>(plane.stride) * buffer->height;
+            if (maximumSize == 0
+                || maximumSize > std::numeric_limits<uint32_t>::max()) {
+                destroyPipeWireSourceBuffer(buffer);
+                return nullptr;
+            }
+            plane.maxSize = static_cast<uint32_t>(maximumSize);
+        }
+    }
+
+    zwp_linux_buffer_params_v1 *params =
+            m_context->m_linuxDmaBuf->create_params();
+    if (!params) {
+        destroyPipeWireSourceBuffer(buffer);
+        return nullptr;
+    }
+
+    for (uint32_t planeIndex = 0;
+         planeIndex < buffer->planeCount;
+         ++planeIndex) {
+        const BufferPlane &plane = buffer->planes.at(planeIndex);
+        zwp_linux_buffer_params_v1_add(params,
+                                       plane.fd,
+                                       planeIndex,
+                                       plane.offset,
+                                       plane.stride,
+                                       static_cast<uint32_t>(buffer->modifier >> 32),
+                                       static_cast<uint32_t>(buffer->modifier));
+    }
+    buffer->waylandBuffer =
+            zwp_linux_buffer_params_v1_create_immed(
+                    params,
+                    static_cast<int32_t>(buffer->width),
+                    static_cast<int32_t>(buffer->height),
+                    buffer->drmFormat,
+                    0);
+    zwp_linux_buffer_params_v1_destroy(params);
+    if (!buffer->waylandBuffer) {
+        destroyPipeWireSourceBuffer(buffer);
+        return nullptr;
+    }
+
+    return buffer;
+}
+
+void AbstractPipeWireStream::destroyPipeWireSourceBuffer(PipeWireSourceBuffer *buffer) const
+{
+    if (!buffer) {
+        return;
+    }
+    if (buffer->waylandBuffer) {
+        wl_buffer_destroy(buffer->waylandBuffer);
+        buffer->waylandBuffer = nullptr;
+    }
+    for (BufferPlane &plane : buffer->planes) {
+        if (plane.fd >= 0) {
+            close(plane.fd);
+            plane.fd = -1;
+        }
+    }
+    if (buffer->gbmBo) {
+        gbm_bo_destroy(buffer->gbmBo);
+        buffer->gbmBo = nullptr;
+    }
+    buffer->dmaBufDevice.reset();
     delete buffer;
 }
 
-bool AbstractPipeWireStream::hasDrmFourcc(uint32_t format)
+bool AbstractPipeWireStream::isCurrentBuffer(const PipeWireSourceBuffer *buffer) const
 {
-    if (format == DRM_FORMAT_INVALID) {
-        return false;
+    return buffer
+            && buffer->waylandBuffer
+            && isCurrentNegotiatedFormat()
+            && buffer->bufferGeneration == m_bufferGeneration
+            && buffer->constraintsGeneration
+                    == m_negotiatedFormat->constraintsGeneration
+            && buffer->width == m_negotiatedFormat->width
+            && buffer->height == m_negotiatedFormat->height
+            && buffer->transport == m_negotiatedFormat->transport
+            && buffer->drmFormat == m_negotiatedFormat->drmFormat
+            && buffer->modifier == m_negotiatedFormat->modifier
+            && buffer->planeCount == m_negotiatedFormat->planeCount
+            && (buffer->transport != BufferTransport::Shm
+                || buffer->wlFormat == m_negotiatedFormat->wlFormat)
+            && (buffer->transport != BufferTransport::DmaBuf
+                || buffer->dmaBufDevice == m_negotiatedFormat->dmaBufDevice);
+}
+
+void AbstractPipeWireStream::queueBuffer(pw_buffer *pipeWireBuffer,
+                                         PipeWireSourceBuffer *sourceBuffer,
+                                         bool validFrame,
+                                         uint64_t pts,
+                                         uint32_t transform)
+{
+    if (!pipeWireBuffer || !pipeWireBuffer->buffer || !m_stream) {
+        return;
     }
-    if (!m_avoidDMAbufs) {
-        foreach(struct DRMFormatModifierPair *fm_pair, std::as_const(m_currentConstraints.dmabuf_format_modifier_pairs)) {
-            if (fm_pair->fourcc == format) {
-                return true;
-            }
+
+    spa_buffer *spaBuffer = pipeWireBuffer->buffer;
+    bool validLayout = sourceBuffer
+            && sourceBuffer->planeCount > 0
+            && sourceBuffer->planeCount <= GBM_MAX_PLANES
+            && spaBuffer->n_datas == sourceBuffer->planeCount
+            && spaBuffer->datas;
+    for (uint32_t plane = 0;
+         validLayout && plane < spaBuffer->n_datas;
+         ++plane) {
+        validLayout = spaBuffer->datas[plane].chunk != nullptr;
+    }
+    validFrame = validFrame && sourceBuffer && validLayout;
+    if (!validLayout) {
+        qCWarning(SCREENCAST) << "xdpw: queuing a malformed PipeWire buffer as corrupted";
+    }
+
+    if (auto *header = static_cast<spa_meta_header *>(
+                spa_buffer_find_meta_data(spaBuffer, SPA_META_Header, sizeof(spa_meta_header)))) {
+        header->pts = static_cast<int64_t>(pts);
+        header->flags = validFrame ? 0 : SPA_META_HEADER_FLAG_CORRUPTED;
+        header->seq = m_sequence++;
+        header->dts_offset = 0;
+    }
+
+    if (auto *videoTransform = static_cast<spa_meta_videotransform *>(
+                spa_buffer_find_meta_data(spaBuffer,
+                                          SPA_META_VideoTransform,
+                                          sizeof(spa_meta_videotransform)))) {
+        videoTransform->transform = transform;
+    }
+
+    for (uint32_t plane = 0; spaBuffer->datas && plane < spaBuffer->n_datas; ++plane) {
+        spa_data &data = spaBuffer->datas[plane];
+        if (!data.chunk) {
+            continue;
         }
+        const BufferPlane *sourcePlane =
+                sourceBuffer && plane < sourceBuffer->planeCount
+                ? &sourceBuffer->planes.at(plane)
+                : nullptr;
+        data.chunk->offset = sourcePlane ? sourcePlane->offset : 0;
+        data.chunk->size = validFrame && sourcePlane ? sourcePlane->maxSize : 0;
+        data.chunk->stride = sourcePlane
+                ? static_cast<int32_t>(sourcePlane->stride)
+                : 0;
+        data.chunk->flags = validFrame
+                ? SPA_CHUNK_FLAG_NONE
+                : SPA_CHUNK_FLAG_CORRUPTED;
     }
-    return false;
+
+    pw_stream_queue_buffer(m_stream, pipeWireBuffer);
+}
+
+uint64_t AbstractPipeWireStream::monotonicTimeNanoseconds() const
+{
+    timespec timestamp = {};
+    if (clock_gettime(CLOCK_MONOTONIC, &timestamp) != 0) {
+        return m_hasLastPresentationTime ? m_lastPresentationTime + 1 : 0;
+    }
+    return static_cast<uint64_t>(timestamp.tv_sec) * s_nanosecondsPerSecond
+            + static_cast<uint64_t>(timestamp.tv_nsec);
+}
+
+uint64_t AbstractPipeWireStream::transactionPresentationTime(bool *valid) const
+{
+    *valid = false;
+    const uint64_t maximumPts =
+            static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+    if (!m_transaction
+        || !m_transaction->timestampReceived
+        || m_transaction->presentationNanoseconds >= s_nanosecondsPerSecond
+        || m_transaction->presentationSeconds
+                > (maximumPts - m_transaction->presentationNanoseconds)
+                        / s_nanosecondsPerSecond) {
+        return 0;
+    }
+
+    *valid = true;
+    return m_transaction->presentationSeconds * s_nanosecondsPerSecond
+            + m_transaction->presentationNanoseconds;
+}
+
+uint64_t AbstractPipeWireStream::normalizePresentationTime(uint64_t pts)
+{
+    const uint64_t maximumPts =
+            static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+    pts = std::min(pts, maximumPts);
+    if (m_hasLastPresentationTime && pts <= m_lastPresentationTime) {
+        qCWarning(SCREENCAST) << "xdpw: non-monotonic presentation timestamp"
+                              << pts << "after" << m_lastPresentationTime;
+        pts = m_lastPresentationTime < maximumPts
+                ? m_lastPresentationTime + 1
+                : maximumPts;
+    }
+
+    m_lastPresentationTime = pts;
+    m_hasLastPresentationTime = true;
+    return pts;
+}
+
+bool AbstractPipeWireStream::isTerminalState() const
+{
+    return m_state == LifecycleState::Stopping
+            || m_state == LifecycleState::Failed;
+}
+
+void AbstractPipeWireStream::failStream(const QString &error)
+{
+    if (m_failureEmitted || m_state == LifecycleState::Stopping) {
+        return;
+    }
+
+    m_failureEmitted = true;
+    m_state = LifecycleState::Failed;
+    qCCritical(SCREENCAST) << "xdpw:" << error;
+    Q_EMIT failed(error);
+    emitClosed();
+}
+
+void AbstractPipeWireStream::emitClosed()
+{
+    if (m_closedEmitted
+        || !m_readyEmitted
+        || m_state == LifecycleState::Stopping) {
+        return;
+    }
+
+    m_closedEmitted = true;
+    Q_EMIT closed(m_nodeId);
 }
