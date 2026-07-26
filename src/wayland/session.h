@@ -45,6 +45,7 @@ public:
 
     QString handle() const { return m_path; }
     QString appId() const { return m_appId; }
+    bool isClosed() const { return m_closed; }
 
 Q_SIGNALS:
     void closed();
@@ -52,4 +53,7 @@ Q_SIGNALS:
 protected:
     const QString m_appId;
     const QString m_path;
+
+private:
+    bool m_closed = false;
 };
