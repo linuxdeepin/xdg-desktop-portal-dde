@@ -90,7 +90,16 @@ void PipeWireCore::onCoreError(void *data,
     qCCritical(PIPEWIRE) << "PipeWire remote error: " << message;
     if (id == PW_ID_CORE && res == -EPIPE) {
         PipeWireCore *pw = static_cast<PipeWireCore *>(data);
+        if (!pw->m_valid) {
+            return;
+        }
         pw->m_valid = false;
+        if (pw->m_notifier) {
+            // The remote socket is gone. Leaving its notifier enabled can
+            // repeatedly wake the Qt event loop while failed streams are
+            // unwinding and the context is waiting to create a new core.
+            pw->m_notifier->setEnabled(false);
+        }
         Q_EMIT pw->pipewireFailed(QString::fromUtf8(message));
     }
 }

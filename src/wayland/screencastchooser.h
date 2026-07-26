@@ -26,14 +26,16 @@ public:
     Q_ENUM(DialogResult)
 
     explicit ScreenCastChooser(const QString &appID,
-                          PortalCommon::SourceTypes types,
-                          QObject *parent = nullptr);
+                               PortalCommon::SourceTypes types,
+                               bool multipleSources,
+                               bool persistenceRequested,
+                               QObject *parent = nullptr);
     ~ScreenCastChooser() override;
     void showWindow();
     void closeWindow();
     QRect selectedRegion() const;
     QList<QPointer<QScreen>> selectedOutputs() const;
-    QList<ToplevelInfo *> selectedToplevels() const;
+    QList<ToplevelInfoPtr> selectedToplevels() const;
     bool allowRestore() const;
     QWindow *windowHandle() const;
 
@@ -50,4 +52,7 @@ public Q_SLOTS:
 private:
     QQmlApplicationEngine *m_engine;
     QQuickWindow *m_window;
+    PortalCommon::SourceTypes m_types;
+    bool m_multipleSources = false;
+    bool m_finished = false;
 };

@@ -4,10 +4,35 @@
 
 #include "foreigntoplevellist.h"
 
+#include <QCoreApplication>
+#include <QMetaMethod>
+
 ForeignToplevelList::ForeignToplevelList(QObject *parent)
     : QWaylandClientExtensionTemplate<ForeignToplevelList>(1)
     , QtWayland::ext_foreign_toplevel_list_v1()
 {
+    setParent(parent);
+    connect(this, &ForeignToplevelList::activeChanged, this, [this] {
+        if (!isActive() && m_deleteWhenFinished && !m_finished) {
+            m_finished = true;
+            deleteLater();
+        }
+    });
+}
+
+ForeignToplevelList::~ForeignToplevelList()
+{
+    if (isInitialized()) {
+        destroy();
+    }
+}
+
+ForeignToplevelListPtr createForeignToplevelList()
+{
+    return ForeignToplevelListPtr(new ForeignToplevelList,
+                                  [](ForeignToplevelList *list) {
+        list->releaseAfterFinished();
+    });
 }
 
 uint32_t ForeignToplevelList::version()
@@ -15,14 +40,53 @@ uint32_t ForeignToplevelList::version()
     return QtWayland::ext_foreign_toplevel_list_v1::version();
 }
 
+void ForeignToplevelList::requestStop()
+{
+    if (m_stopRequested || m_finished) {
+        return;
+    }
+
+    m_stopRequested = true;
+    if (isInitialized() && isActive()) {
+        stop();
+    } else {
+        m_finished = true;
+    }
+}
+
+void ForeignToplevelList::releaseAfterFinished()
+{
+    if (!QCoreApplication::instance() || QCoreApplication::closingDown()) {
+        delete this;
+        return;
+    }
+
+    m_deleteWhenFinished = true;
+    requestStop();
+    if (m_finished) {
+        deleteLater();
+    }
+}
+
 void ForeignToplevelList::ext_foreign_toplevel_list_v1_toplevel(struct ::ext_foreign_toplevel_handle_v1 *toplevel)
 {
-    Q_EMIT toplevelAdded(new ForeignToplevelHandle(toplevel));
+    auto *handle = new ForeignToplevelHandle(toplevel);
+    if (!isSignalConnected(QMetaMethod::fromSignal(&ForeignToplevelList::toplevelAdded))) {
+        handle->destroy();
+        handle->deleteLater();
+        return;
+    }
+
+    Q_EMIT toplevelAdded(handle);
 }
 
 void ForeignToplevelList::ext_foreign_toplevel_list_v1_finished()
 {
+    m_finished = true;
     Q_EMIT finished();
+    if (m_deleteWhenFinished) {
+        deleteLater();
+    }
 }
 
 ForeignToplevelHandle::ForeignToplevelHandle(struct ::ext_foreign_toplevel_handle_v1 *object, QObject *parent)

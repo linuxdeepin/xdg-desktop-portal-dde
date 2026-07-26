@@ -8,19 +8,21 @@ import QtQuick.Layouts
 
 import org.deepin.dtk 1.0 as D
 
-ListView {
+D.ListView {
     id: view
 
     property real itemHeight
+    property bool multipleSelection: false
+    readonly property bool hasSelection: Boolean(view.model && view.model.hasSelection)
     readonly property real iconSize: 16
 
     clip: true
     highlightFollowsCurrentItem: true
-    ButtonGroup { id: doubleExclusiveGroup }
     delegate: D.CheckDelegate {
         width: view.width
         height: view.itemHeight
-        ButtonGroup.group: doubleExclusiveGroup
+        checkable: false
+        checked: sourceSelected
         content: RowLayout {
             spacing: 10
             D.DciIcon {
@@ -39,7 +41,14 @@ ListView {
                 Layout.fillWidth: true
             }
         }
-        onClicked: view.currentIndex = index
+        onClicked: {
+            view.currentIndex = index
+            if (view.multipleSelection) {
+                view.model.toggleSelection(index)
+            } else {
+                view.model.selectSingle(index)
+            }
+        }
 
         Background {
             readonly property real sideMargin: 10
