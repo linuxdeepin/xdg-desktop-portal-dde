@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -105,6 +105,21 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, FileChooserPortal::Opt
     option.initialChoiceId = initialChoiceId;
     arg.endStructure();
     return arg;
+}
+
+static QVariant currentFilterResult(const QFileDialog &fileDialog,
+                                    bool mimeFilters,
+                                    const QMap<QString, FileChooserPortal::FilterList> &allFilters)
+{
+    const QString selectedFilter = mimeFilters
+            ? fileDialog.selectedMimeTypeFilter()
+            : fileDialog.selectedNameFilter();
+    const auto filter = allFilters.constFind(selectedFilter);
+    if (filter != allFilters.cend()) {
+        return QVariant::fromValue<FileChooserPortal::FilterList>(filter.value());
+    }
+
+    return {};
 }
 
 Q_LOGGING_CATEGORY(fileChooserCategory, "xdg-dde-filechooser")
@@ -247,14 +262,9 @@ uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
     results.insert(QStringLiteral("choices"), ""); // TODO
 
     // try to map current filter back to one of the predefined ones
-    QString selectedFilter;
-    if (bMimeFilters) {
-        selectedFilter = fileDialog.selectedMimeTypeFilter();
-    } else {
-        selectedFilter = fileDialog.selectedNameFilter();
-    }
-    if (allFilters.contains(selectedFilter)) {
-        results.insert(QStringLiteral("current_filter"), QVariant::fromValue<FilterList>(allFilters.value(selectedFilter)));
+    const QVariant currentFilter = currentFilterResult(fileDialog, bMimeFilters, allFilters);
+    if (currentFilter.isValid()) {
+        results.insert(QStringLiteral("current_filter"), currentFilter);
     }
 
     return 0;
@@ -336,7 +346,10 @@ uint FileChooserPortal::SaveFile(const QDBusObjectPath &handle,
     const auto &urls = fileDialog.selectedUrls();
     results.insert(QStringLiteral("uris"), QUrl::toStringList(urls, QUrl::FullyEncoded));
     results.insert(QStringLiteral("choices"), ""); // TODO
-    results.insert(QStringLiteral("current_filter"), ""); // TODO
+    const QVariant currentFilter = currentFilterResult(fileDialog, bMimeFilters, allFilters);
+    if (currentFilter.isValid()) {
+        results.insert(QStringLiteral("current_filter"), currentFilter);
+    }
 
     return 0;
 }
@@ -453,7 +466,7 @@ void FileChooserPortal::parseFilters(const QVariantMap &options,
                 const QString filterString = filterStrings.join(QLatin1Char(' '));
                 const QString nameFilter = QStringLiteral("%1(%2)").arg(userVisibleName, filterString);
                 nameFilters << nameFilter;
-                allFilters[filterList.userVisibleName] = filterList;
+                allFilters[nameFilter] = filterList;
             }
         }
     }
@@ -468,8 +481,8 @@ void FileChooserPortal::parseFilters(const QVariantMap &options,
 
         Filter filterStruct = filterList.filters.at(0);
         if (filterStruct.type == 0) {
-            QString userVisibleName = filterList.userVisibleName;
-            QString nameFilter = QStringLiteral("%1|(%2)").arg(filterStruct.filterString, userVisibleName);
+            const QString nameFilter = QStringLiteral("%1(%2)").arg(filterList.userVisibleName,
+                                                                    filterStruct.filterString);
             nameFilters.removeAll(nameFilter);
             nameFilters.push_front(nameFilter);
         } else {
