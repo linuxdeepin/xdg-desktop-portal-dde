@@ -32,7 +32,7 @@ Architecture: any
 Depends:
   ${shlibs:Depends},
   ${misc:Depends}
-Description: Dtk poortal backend for xdg-desktop-portal
+Description: Dtk portal backend for xdg-desktop-portal
   xdg-desktop-portal-dde provide a DTK implementation for the
   desktop-agnostic xdg-desktop-portal service. This allows sandboxed
   applications to request services from outside the sandbox using
