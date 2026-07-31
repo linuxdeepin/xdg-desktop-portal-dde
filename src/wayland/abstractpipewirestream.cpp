@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -574,8 +574,8 @@ void AbstractPipeWireStream::enqueueBuffer()
 
                 *d_region = SPA_REGION(rect.x(),
                                        rect.y(),
-                                       rect.width(),
-                                       rect.height());
+                                       static_cast<uint32_t>(rect.width()),
+                                       static_cast<uint32_t>(rect.height()));
                 qCDebug(SCREENCAST, "pipewire: damage %u %u,%u (%ux%u)", damage_counter,
                          d_region->position.x, d_region->position.y, d_region->size.width, d_region->size.height);
                 damage_counter++;
@@ -590,10 +590,11 @@ void AbstractPipeWireStream::enqueueBuffer()
                     }
                     new_fdamage += rect;
                 }
-                *d_region = SPA_REGION(new_fdamage.boundingRect().x(),
-                                       new_fdamage.boundingRect().y(),
-                                       new_fdamage.boundingRect().width(),
-                                       new_fdamage.boundingRect().height());
+                const QRect boundingRect = new_fdamage.boundingRect();
+                *d_region = SPA_REGION(boundingRect.x(),
+                                       boundingRect.y(),
+                                       static_cast<uint32_t>(boundingRect.width()),
+                                       static_cast<uint32_t>(boundingRect.height()));
                 qCDebug(SCREENCAST, "pipewire: collected damage %u %u,%u (%ux%u)", damage_counter,
                          d_region->position.x, d_region->position.y, d_region->size.width, d_region->size.height);
             }
@@ -883,9 +884,10 @@ void AbstractPipeWireStream::handleCaptureSessionDmabufDeviceChanged(wl_array *d
 void AbstractPipeWireStream::handleCaptureSessionDmabufFormatChanged(uint32_t format, wl_array *modifiers)
 {
     char *fmt_name = drmGetFormatName(format);
-    void *p;
-    wl_array_for_each(p, modifiers) {
-        uint64_t *modifier = (uint64_t *)(p);
+    const char *modifiersEnd = static_cast<const char *>(modifiers->data) + modifiers->size;
+    for (uint64_t *modifier = static_cast<uint64_t *>(modifiers->data);
+         reinterpret_cast<const char *>(modifier) < modifiersEnd;
+         ++modifier) {
         bool newPair = true;
         foreach (struct DRMFormatModifierPair *tmp, std::as_const(m_pendingConstraints.dmabuf_format_modifier_pairs)) {
             if (tmp->fourcc == format && tmp->modifier == *modifier) {
