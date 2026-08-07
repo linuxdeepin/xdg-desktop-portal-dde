@@ -60,7 +60,7 @@ uint RemoteDesktopPortal::SelectDevices(const QDBusObjectPath &handle,
     qCDebug(REMOTEDESKTOP) << "    app_id: " << app_id;
     qCDebug(REMOTEDESKTOP) << "    options: " << options;
 
-    const PortalCommon::DeviceTypes supportedTypes = PortalCommon::Keyboard | PortalCommon::Pointer;
+    const auto supportedTypes = static_cast<PortalCommon::DeviceTypes>(AvailableDeviceTypes());
     // The types option is optional and defaults to all available device types.
     // Do not interpret a missing option as an explicit request for no devices.
     const auto requestedTypes = static_cast<PortalCommon::DeviceTypes>(
@@ -70,6 +70,15 @@ uint RemoteDesktopPortal::SelectDevices(const QDBusObjectPath &handle,
         qCWarning(REMOTEDESKTOP) << "Ignoring unsupported remote desktop device types:" << unsupportedTypes;
     }
     const auto types = requestedTypes & supportedTypes;
+
+    // A request containing only unsupported devices would otherwise open a
+    // chooser with no input controls and an Allow button that can never be
+    // enabled. Fail the SelectDevices request instead. An explicit value of 0
+    // is valid for screen-sharing-only sessions.
+    if (requestedTypes != PortalCommon::None && types == PortalCommon::None) {
+        qCWarning(REMOTEDESKTOP) << "No supported remote desktop device types were requested:" << requestedTypes;
+        return PortalResponse::OtherError;
+    }
 
     RemoteDesktopSession *session = Session::getSession<RemoteDesktopSession>(session_handle.path());
 
@@ -179,6 +188,12 @@ void RemoteDesktopPortal::Start(const QDBusObjectPath &handle,
         return;
     }
 
+    if (!session->screenSharingEnabled() && session->deviceTypes() == PortalCommon::None) {
+        qCWarning(REMOTEDESKTOP) << "Cannot start a remote desktop session without an input device";
+        replyResponse = PortalResponse::OtherError;
+        return;
+    }
+
     if (session->screenSharingEnabled() && QGuiApplication::screens().isEmpty()) {
         qCWarning(REMOTEDESKTOP) << "Failed to show dialog as there is no screen to select";
         replyResponse = PortalResponse::OtherError;
@@ -264,8 +279,8 @@ void RemoteDesktopPortal::Start(const QDBusObjectPath &handle,
                                             session->screenSharingEnabled(),
                                             availableSourceTypes,
                                             this);
-    dialog->showWindow();
     Utils::setParentWindow(dialog->windowHandle(), parent_window);
+    dialog->showWindow();
     Request2::makeClosableDialogRequestWithSession(handle, dialog, session);
     delayReply(message, dialog, this,
                [session, dialog](RemoteDesktopChooser::DialogResult result) -> QVariantList {

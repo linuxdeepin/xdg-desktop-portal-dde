@@ -8,6 +8,7 @@ OutputImageCaptureSourceManager::OutputImageCaptureSourceManager(QObject *parent
     : QWaylandClientExtensionTemplate<OutputImageCaptureSourceManager>(1)
     , QtWayland::ext_output_image_capture_source_manager_v1()
 {
+    initialize();
 }
 
 uint32_t OutputImageCaptureSourceManager::version()
@@ -19,6 +20,7 @@ ForeignToplevelImageCaptureSourceManager::ForeignToplevelImageCaptureSourceManag
     : QWaylandClientExtensionTemplate<ForeignToplevelImageCaptureSourceManager>(1)
     , QtWayland::ext_foreign_toplevel_image_capture_source_manager_v1()
 {
+    initialize();
 }
 
 uint32_t ForeignToplevelImageCaptureSourceManager::version()

@@ -9,12 +9,17 @@ import org.deepin.dtk 1.0 as D
 
 D.DialogWindow {
     id: root
-    width: 840
-    height: screenSharingEnabled ? 680 : 360
-    minimumWidth: width
-    minimumHeight: height
-    maximumWidth: width
-    maximumHeight: height
+    readonly property int dialogWidth: 840
+    readonly property int dialogHeight: screenSharingEnabled ? 680 : 360
+
+    width: dialogWidth
+    height: dialogHeight
+    // Do not bind the window constraints to height. QQuickWindow may clamp
+    // height when the constraints change, which creates a binding loop.
+    minimumWidth: dialogWidth
+    minimumHeight: dialogHeight
+    maximumWidth: dialogWidth
+    maximumHeight: dialogHeight
     modality: Qt.WindowModal
 
     property string clientAppName
@@ -52,6 +57,7 @@ D.DialogWindow {
 
         GroupBox {
             title: qsTr("Remote input")
+            visible: root.keyboardRequested || root.pointerRequested
             Layout.fillWidth: true
             RowLayout {
                 anchors.fill: parent
@@ -125,6 +131,7 @@ D.DialogWindow {
 
         RowLayout {
             Layout.fillWidth: true
+            spacing: 10
             CheckBox {
                 id: restoreCheckBox
                 checked: true

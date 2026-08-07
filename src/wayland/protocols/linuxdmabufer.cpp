@@ -9,6 +9,7 @@
 LinuxDmaBufV1::LinuxDmaBufV1()
     : QWaylandClientExtensionTemplate<LinuxDmaBufV1>(LINUXDMAVERSION)
 {
+    initialize();
 }
 
 LinuxDmaBufV1::~LinuxDmaBufV1()

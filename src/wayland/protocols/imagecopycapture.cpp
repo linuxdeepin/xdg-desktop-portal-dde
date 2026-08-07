@@ -9,6 +9,7 @@ ImageCopyCaptureManager::ImageCopyCaptureManager(QObject *parent)
     : QWaylandClientExtensionTemplate<ImageCopyCaptureManager>(1)
     , QtWayland::ext_image_copy_capture_manager_v1()
 {
+    initialize();
 }
 
 uint32_t ImageCopyCaptureManager::version()

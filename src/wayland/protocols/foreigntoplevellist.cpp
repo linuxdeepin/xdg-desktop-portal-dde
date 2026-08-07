@@ -8,6 +8,7 @@ ForeignToplevelList::ForeignToplevelList(QObject *parent)
     : QWaylandClientExtensionTemplate<ForeignToplevelList>(1)
     , QtWayland::ext_foreign_toplevel_list_v1()
 {
+    initialize();
 }
 
 uint32_t ForeignToplevelList::version()

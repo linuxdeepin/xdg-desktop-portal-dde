@@ -82,18 +82,40 @@ bool TreelandIntergration::isStreamingAvailable() const
 
 bool TreelandIntergration::isOutputStreamingAvailable() const
 {
-    return m_context &&
-            m_context->linuxDmaBufInterfaceActive() &&
-            m_context->outputImageCaptureSourceManagerActive() &&
-            m_context->imageCopyCaptureManagerActive();
+    if (!m_context) {
+        return false;
+    }
+
+    const bool available = m_context->outputImageCaptureSourceManagerActive()
+        && m_context->imageCopyCaptureManagerActive()
+        && (m_context->linuxDmaBufInterfaceActive() || m_context->shmInterfaceActive());
+    if (!available) {
+        qCWarning(SCREENCAST) << "Output capture capabilities:"
+                               << "linuxDmaBuf=" << m_context->linuxDmaBufInterfaceActive()
+                               << "shm=" << m_context->shmInterfaceActive()
+                               << "outputImageCaptureSource=" << m_context->outputImageCaptureSourceManagerActive()
+                               << "imageCopyCapture=" << m_context->imageCopyCaptureManagerActive();
+    }
+    return available;
 }
 
 bool TreelandIntergration::isToplevelStreamingAvailable() const
 {
-    return m_context &&
-            m_context->linuxDmaBufInterfaceActive() &&
-            m_context->foreignToplevelImageCaptureSourceManagerActive() &&
-            m_context->imageCopyCaptureManagerActive();
+    if (!m_context) {
+        return false;
+    }
+
+    const bool available = m_context->foreignToplevelImageCaptureSourceManagerActive()
+        && m_context->imageCopyCaptureManagerActive()
+        && (m_context->linuxDmaBufInterfaceActive() || m_context->shmInterfaceActive());
+    if (!available) {
+        qCWarning(SCREENCAST) << "Toplevel capture capabilities:"
+                               << "linuxDmaBuf=" << m_context->linuxDmaBufInterfaceActive()
+                               << "shm=" << m_context->shmInterfaceActive()
+                               << "foreignToplevelImageCaptureSource=" << m_context->foreignToplevelImageCaptureSourceManagerActive()
+                               << "imageCopyCapture=" << m_context->imageCopyCaptureManagerActive();
+    }
+    return available;
 }
 
 Stream TreelandIntergration::startStreamingOutput(QScreen *screen, PortalCommon::CursorModes mode)
