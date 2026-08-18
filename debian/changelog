@@ -1,3 +1,10 @@
+xdg-desktop-portal-dde (1.1.10) unstable; urgency=medium
+
+  * fix(filechooser): return selected save filter
+  * i18n: Translate xdg-desktop-portal-dde_en.ts in pt (#130)
+
+ -- zhangkun <zhangkun2@uniontech.com>  Tue, 18 Aug 2026 13:30:24 +0800
+
 xdg-desktop-portal-dde (1.1.9) unstable; urgency=medium
 
   * fix(cmake): fix undefined reference errors in wayland module
