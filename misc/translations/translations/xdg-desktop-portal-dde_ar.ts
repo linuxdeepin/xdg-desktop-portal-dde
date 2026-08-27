@@ -1,6 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS>
-<TS version="2.1" language="ar">
+<?xml version="1.0" ?><!DOCTYPE TS><TS version="2.1" language="ar">
 <context>
     <name>AccessDialog</name>
     <message>
@@ -14,7 +12,7 @@
     <message>
         <source>%1 (%2s)</source>
         <comment>e.g. Deny Access (15s)</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1 (%2s)</translation>
     </message>
 </context>
 <context>
@@ -32,42 +30,42 @@
     <name>ScreencastChooserWindow</name>
     <message>
         <source>Application [%1] requests to share you screen content</source>
-        <translation type="unfinished"></translation>
+        <translation>يطلب التطبيق [%1] مشاركة محتوى الشاشة الخاص بك</translation>
     </message>
     <message>
         <source>Please select the screen or window you wish to share</source>
-        <translation type="unfinished"></translation>
+        <translation>يرجى تحديد الشاشة أو النافذة التي ترغب في مشاركتها</translation>
     </message>
     <message>
         <source>Screen</source>
-        <translation type="unfinished"></translation>
+        <translation>الشاشة</translation>
     </message>
     <message>
         <source>Window</source>
-        <translation type="unfinished"></translation>
+        <translation>نافذة</translation>
     </message>
     <message>
         <source>Allow restoring on future sessions</source>
-        <translation type="unfinished"></translation>
+        <translation>السماح بالاستعادة في الجلسات المستقبلية</translation>
     </message>
     <message>
         <source>Accept</source>
-        <translation type="unfinished"></translation>
+        <translation>قبول</translation>
     </message>
     <message>
         <source>Reject</source>
-        <translation type="unfinished"></translation>
+        <translation>رفض</translation>
     </message>
 </context>
 <context>
     <name>ScreencastPortalWayland</name>
     <message>
         <source>Sharing Screen to [%1]</source>
-        <translation type="unfinished"></translation>
+        <translation>مشاركة الشاشة مع [%1]</translation>
     </message>
     <message>
         <source>Stop [%1] Sharing</source>
-        <translation type="unfinished"></translation>
+        <translation>إيقاف مشاركة [%1]</translation>
     </message>
 </context>
 </TS>
