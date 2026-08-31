@@ -17,16 +17,26 @@ Request::Request(const QDBusObjectPath &handle, const QVariant &data, QObject *p
     , m_data(data)
 {
     auto sessionBus = QDBusConnection::sessionBus();
-    if (!sessionBus.registerObject(m_handle.path(), this, QDBusConnection::ExportScriptableSlots)) {
+    m_registered = sessionBus.registerObject(
+            m_handle.path(), this, QDBusConnection::ExportScriptableSlots);
+    if (!m_registered) {
         qCDebug(XdgDesktopDDERequest) << sessionBus.lastError().message();
         qCDebug(XdgDesktopDDERequest) << "Failed to register request object for" << m_handle.path();
-        deleteLater();
     }
 }
 
 Request::~Request()
 {
+    unregister();
+}
+
+void Request::unregister()
+{
+    if (!m_registered) {
+        return;
+    }
     QDBusConnection::sessionBus().unregisterObject(m_handle.path());
+    m_registered = false;
 }
 
 void Request::Close(const QDBusMessage &message)
@@ -34,6 +44,7 @@ void Request::Close(const QDBusMessage &message)
     QDBusMessage messageReply = message.createReply();
     QDBusConnection::sessionBus().send(messageReply);
 
-    emit closeRequested(m_data);
+    unregister();
+    Q_EMIT closeRequested(m_data);
     deleteLater();
 }

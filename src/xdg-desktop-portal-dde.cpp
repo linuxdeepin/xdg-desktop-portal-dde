@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "ddesktopportal.h"
+#include "access.h"
 #include "filechooser.h"
 #include "wayland/portalwaylandcontext.h"
 #include "wayland/toplevelmodel.h"
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])
         if (onWayland()) {
             PortalWaylandContext *waylandContext = new PortalWaylandContext(&a);
             new FileChooserPortal(waylandContext);
+            new AccessPortal(waylandContext);
             if (sessionBus.registerObject(QStringLiteral("/org/freedesktop/portal/desktop"),
                                           waylandContext,
                                           QDBusConnection::ExportAdaptors)) {
