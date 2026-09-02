@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2025-2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -33,7 +33,7 @@ public:
     ScreencastPortalWayland(PortalWaylandContext *context);
     ~ScreencastPortalWayland() override;
 
-    uint version() const { return 1;}
+    uint version() const { return 6;}
     uint AvailableSourceTypes() const;
     uint AvailableCursorModes() const;
 
