@@ -4,182 +4,250 @@
 
 #pragma once
 
-#include "protocols/imagecapturesource.h"
-#include "protocols/imagecopycapture.h"
-#include "wayland-wayland-client-protocol.h"
-#include "screencastcontext.h"
 #include "portalcommon.h"
-#include "fpslimit.h"
+#include "protocols/imagecopycapture.h"
+#include "screencastcontext.h"
 
-#include <gbm.h>
-#include <xf86drm.h>
 #include <pipewire/pipewire.h>
 #include <spa/param/video/format-utils.h>
 
+#include <QByteArray>
 #include <QObject>
 #include <QPointer>
-#include <QTimer>
+#include <QVector>
 
-#define XDPW_PWR_BUFFERS 2
-#define XDPW_PWR_BUFFERS_MIN 2
-#define XDPW_PWR_ALIGN 16
-
-enum FrameState {
-    XDPW_FRAME_STATE_NONE,
-    XDPW_FRAME_STATE_STARTED,
-    XDPW_FRAME_STATE_RENEG,
-    XDPW_FRAME_STATE_FAILED,
-    XDPW_FRAME_STATE_SUCCESS,
-};
-
-struct PipeWireSourceBuffer {
-    QRegion damage;
-    struct wl_buffer *buffer = nullptr;
-
-    int fd[GBM_MAX_PLANES];
-    uint32_t size[GBM_MAX_PLANES];
-    uint32_t stride[GBM_MAX_PLANES];
-    uint32_t offset[GBM_MAX_PLANES];
-
-    uint32_t width;
-    uint32_t height;
-    uint32_t format;
-    int planeCount;
-
-    enum PortalCommon::BufferType bufferType;
-};
-
-struct PipeWireFrame {
-    struct PipeWireSourceBuffer *pipeWireSourceBuffer = nullptr;
-    struct pw_buffer *pwBuffer = nullptr;
-    uint64_t tv_sec;
-    uint32_t tv_nsec;
-    uint32_t transformation;
-};
+#include <array>
+#include <memory>
+#include <optional>
+#include <sys/types.h>
 
 class AbstractPipeWireStream : public QObject
 {
     Q_OBJECT
+
 public:
-    struct xdpw_shm_format {
-        uint32_t fourcc;
-        uint32_t stride;
-    };
-
-    struct DRMFormatModifierPair {
-        uint32_t fourcc;
-        uint64_t modifier;
-    };
-
-    struct PipewireBufferConstraints {
-        QList<struct DRMFormatModifierPair *> dmabuf_format_modifier_pairs;
-        QList<struct xdpw_shm_format *> shm_formats;
-        struct gbm_device *gbm = nullptr;
-        uint32_t width, height;
-        bool dirty = false;
-    };
-
     AbstractPipeWireStream(QPointer<ScreenCastContext> context,
                            PortalCommon::CursorModes mode,
                            QObject *parent = nullptr);
     ~AbstractPipeWireStream() override;
 
-    void onStreamStateChanged(enum pw_stream_state old,
-                              enum pw_stream_state state,
+    virtual int startScreencast() = 0;
+
+    uint32_t nodeId() const
+    {
+        return m_nodeId;
+    }
+
+    void onStreamStateChanged(pw_stream_state oldState,
+                              pw_stream_state state,
                               const char *error);
-    void onStreamParamChanged(uint32_t id, const struct spa_pod *param);
-    void onStreamRemoveBuffer(struct pw_buffer *buffer);
-    void onStreamAddBuffer(struct pw_buffer *buffer);
+    void onStreamParamChanged(uint32_t id, const spa_pod *param);
+    void onStreamRemoveBuffer(pw_buffer *buffer);
+    void onStreamAddBuffer(pw_buffer *buffer);
     void onStreamProcess();
 
-    void enqueueBuffer();
-    void dequeueBuffer();
-    void buildFormats(struct spa_pod_builder *builder,
-                       struct wl_array *params);
-
-    uint32_t nodeId() const { return m_nodeId; }
-
-    void pipewireBufferConstraintsInit(struct PipewireBufferConstraints *constraints);
-    bool pipewireBufferConstraintsMove(struct PipewireBufferConstraints *dst, struct PipewireBufferConstraints *src);
-    void pipewireBufferConstraintsFinish(struct PipewireBufferConstraints *constraints);
-
-    void frameCapture();
-
-    virtual int startScreencast() = 0;
-    virtual void startframeCapture() = 0;
-    void createImageCaptureFrame();
-
-    void destroyImageCaptureFrame();
-    void finishImageCaptureFrame();
 Q_SIGNALS:
     void ready(uint32_t nodeId);
-    void created(quint32 nodeid);
     void failed(const QString &error);
     void closed(uint32_t nodeId);
 
-public Q_SLOTS:
+protected:
+    bool initializeCaptureSession(ext_image_capture_source_v1 *source);
+    void setMaxFramerate(uint32_t framerate);
+    void closeForSourceLoss(const QString &reason);
+    void teardown();
+
+    QPointer<ScreenCastContext> m_context;
+
+private:
+    enum class BufferTransport {
+        Shm,
+        DmaBuf,
+    };
+
+    struct DmaBufDevice {
+        ~DmaBufDevice();
+
+        dev_t deviceId = 0;
+        int fd = -1;
+        gbm_device *gbm = nullptr;
+    };
+
+    struct ShmFormat {
+        uint32_t wlFormat = 0;
+        uint32_t drmFormat = 0;
+        spa_video_format spaFormat = SPA_VIDEO_FORMAT_UNKNOWN;
+        uint32_t bytesPerPixel = 0;
+    };
+
+    struct DmaBufFormat {
+        uint32_t drmFormat = 0;
+        spa_video_format spaFormat = SPA_VIDEO_FORMAT_UNKNOWN;
+        QVector<uint64_t> modifiers;
+    };
+
+    struct CaptureConstraints {
+        uint32_t width = 0;
+        uint32_t height = 0;
+        QVector<ShmFormat> shmFormats;
+        std::optional<dev_t> dmaBufDevice;
+        QVector<DmaBufFormat> dmaBufFormats;
+        uint64_t generation = 0;
+    };
+
+    struct NegotiatedFormat {
+        BufferTransport transport = BufferTransport::Shm;
+        uint32_t wlFormat = 0;
+        uint32_t drmFormat = 0;
+        spa_video_format spaFormat = SPA_VIDEO_FORMAT_UNKNOWN;
+        uint32_t bytesPerPixel = 0;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint64_t modifier = 0;
+        uint32_t planeCount = 1;
+        uint64_t constraintsGeneration = 0;
+        std::shared_ptr<DmaBufDevice> dmaBufDevice;
+    };
+
+    struct BufferPlane {
+        int fd = -1;
+        uint32_t maxSize = 0;
+        uint32_t stride = 0;
+        uint32_t offset = 0;
+    };
+
+    struct PipeWireSourceBuffer {
+        wl_buffer *waylandBuffer = nullptr;
+        gbm_bo *gbmBo = nullptr;
+        std::shared_ptr<DmaBufDevice> dmaBufDevice;
+        std::array<BufferPlane, GBM_MAX_PLANES> planes;
+        BufferTransport transport = BufferTransport::Shm;
+        uint32_t planeCount = 0;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t wlFormat = 0;
+        uint32_t drmFormat = 0;
+        uint64_t modifier = 0;
+        uint64_t constraintsGeneration = 0;
+        uint64_t bufferGeneration = 0;
+    };
+
+    struct FrameTransaction {
+        uint64_t id = 0;
+        pw_buffer *pipeWireBuffer = nullptr;
+        PipeWireSourceBuffer *sourceBuffer = nullptr;
+        ImageCopyCaptureFrame *captureFrame = nullptr;
+        uint64_t presentationSeconds = 0;
+        uint32_t presentationNanoseconds = 0;
+        uint32_t transform = WL_OUTPUT_TRANSFORM_NORMAL;
+        bool timestampReceived = false;
+        bool transformReceived = false;
+    };
+
+    enum class LifecycleState {
+        Initializing,
+        Paused,
+        Streaming,
+        Stopping,
+        Failed,
+    };
+
+    void beginConstraintBatch();
+    bool validateConstraints(const CaptureConstraints &constraints, QString *error) const;
+    bool constraintsEqual(const CaptureConstraints &lhs, const CaptureConstraints &rhs) const;
+    void applyPendingConstraints();
+    void schedulePendingConstraints();
+
     void handleCaptureSessionBufferSizeChanged(uint32_t width, uint32_t height);
     void handleCaptureSessionShmFormatChanged(uint32_t format);
-    void handleCaptureSessionDmabufDeviceChanged(wl_array *device);
-    void handleCaptureSessionDmabufFormatChanged(uint32_t format, wl_array *modifiers);
+    void handleCaptureSessionDmaBufDeviceChanged(wl_array *device);
+    void handleCaptureSessionDmaBufFormatChanged(uint32_t format, wl_array *modifiers);
     void handleCaptureSessionDone();
     void handleCaptureSessionStopped();
 
+    void startFrameCapture();
     void handleFrameTransform(uint32_t transform);
-    void handleFrameDamage(int32_t x, int32_t y, int32_t width, int32_t height);
-    void handleFramePresentationTime(uint32_t tv_sec_hi, uint32_t tv_sec_lo, uint32_t tv_nsec);
+    void handleFramePresentationTime(uint32_t tvSecHi, uint32_t tvSecLo, uint32_t tvNsec);
     void handleFrameReady();
     void handleFrameFailed(uint32_t reason);
+    void destroyCaptureFrame();
+    void cancelTransaction(const char *reason);
+    void finishTransaction(bool validFrame, const char *reason);
 
-private Q_SLOTS:
-    void handleTimeOut();
-
-protected:
-    void updateStreamParam();
-    void createStream();
+    bool createStream();
     void destroyStream();
+    bool updateStreamFormats();
+    bool updateStreamBufferParams();
+    bool beginBufferReconfiguration(const char *reason);
+    QVector<QByteArray> buildStreamFormatPods() const;
+    bool isCurrentNegotiatedFormat() const;
 
-private:
-    void buildModifierList(uint32_t drm_format, uint64_t **modifiers, uint32_t *modifier_count);
-    void queryDmabufModifiers(uint32_t drm_format,
-                                     uint64_t *modifiers, uint32_t num_modifiers);
-    uint32_t countDmabufModifiers(uint32_t drm_format);
-    PipeWireSourceBuffer *createPipeWireSourceBuffer(enum PortalCommon::BufferType bufferType);
-    void destroyPipeWireSourceBuffer(PipeWireSourceBuffer *buffer);
-    bool hasDrmFourcc(uint32_t format);
+    void refreshDmaBufCapabilities();
+    std::shared_ptr<DmaBufDevice> createDmaBufDevice(dev_t deviceId) const;
+    gbm_bo *allocateDmaBufBo(const std::shared_ptr<DmaBufDevice> &device,
+                            uint32_t width,
+                            uint32_t height,
+                            uint32_t drmFormat,
+                            uint64_t modifier) const;
+    std::optional<NegotiatedFormat> selectDmaBufFormat(
+            spa_video_format spaFormat,
+            const QVector<uint64_t> &modifiers) const;
+    bool rejectDmaBufModifiers(spa_video_format spaFormat,
+                               const QVector<uint64_t> &modifiers);
 
-protected:
+    PipeWireSourceBuffer *createPipeWireSourceBuffer() const;
+    PipeWireSourceBuffer *createShmPipeWireSourceBuffer() const;
+    PipeWireSourceBuffer *createDmaBufPipeWireSourceBuffer() const;
+    void destroyPipeWireSourceBuffer(PipeWireSourceBuffer *buffer) const;
+    bool isCurrentBuffer(const PipeWireSourceBuffer *buffer) const;
+    void queueBuffer(pw_buffer *pipeWireBuffer,
+                     PipeWireSourceBuffer *sourceBuffer,
+                     bool validFrame,
+                     uint64_t pts,
+                     uint32_t transform);
+
+    uint64_t monotonicTimeNanoseconds() const;
+    uint64_t transactionPresentationTime(bool *valid) const;
+    uint64_t normalizePresentationTime(uint64_t pts);
+    bool isTerminalState() const;
+    void failStream(const QString &error);
+    void emitClosed();
+
     QList<PipeWireSourceBuffer *> m_buffers;
+    std::shared_ptr<PipeWireCore> m_pipeWireCore;
 
-    QPointer<ScreenCastContext> m_context = nullptr;
     ImageCopyCaptureSession *m_session = nullptr;
-    struct ::ext_image_capture_source_v1 *m_source = nullptr;
-    ImageCopyCaptureFrame *m_frame = nullptr;
+    ext_image_capture_source_v1 *m_source = nullptr;
 
-    struct PipewireBufferConstraints m_currentConstraints;
-    struct PipewireBufferConstraints m_pendingConstraints;
+    CaptureConstraints m_activeConstraints;
+    CaptureConstraints m_constraintBatch;
+    std::optional<CaptureConstraints> m_pendingConstraints;
+    bool m_pendingConstraintsRequireReconfiguration = false;
+    bool m_collectingConstraints = false;
+    bool m_reconfiguringBuffers = false;
+    bool m_constraintsApplyScheduled = false;
+    uint64_t m_nextConstraintGeneration = 1;
+    uint64_t m_bufferGeneration = 1;
 
-    struct PipeWireFrame m_currentFrame;
+    QVector<DmaBufFormat> m_usableDmaBufFormats;
+    std::shared_ptr<DmaBufDevice> m_dmaBufDevice;
+    std::optional<NegotiatedFormat> m_pendingDmaBufSelection;
+    std::optional<NegotiatedFormat> m_negotiatedFormat;
+    std::optional<FrameTransaction> m_transaction;
 
-    struct pw_stream *m_stream = nullptr;
-    struct spa_hook m_streamListener;
-    struct spa_video_info_raw m_pipewireVideoInfo;
+    pw_stream *m_stream = nullptr;
+    spa_hook m_streamListener = {};
+    spa_video_info_raw m_videoInfo = {};
 
-    struct fps_limit_state fps_limit;
-
+    LifecycleState m_state = LifecycleState::Initializing;
+    PortalCommon::CursorModes m_cursorMode;
     uint32_t m_nodeId = SPA_ID_INVALID;
-    uint32_t m_seq = 0;
-    uint32_t m_framerate = 0;
-
-    bool m_initialized = false;
-    bool m_avoidDMAbufs = false;
-    int m_err = 0;
-    bool m_quit = false;
-    bool m_isStreaming = false;
-    bool m_forceModLinear = false;
-
-    PortalCommon::BufferType m_bufferType;
-    FrameState m_frameState = XDPW_FRAME_STATE_NONE;
-    PortalCommon::CursorModes m_mode;
-    QTimer *m_timer = nullptr;
+    uint32_t m_maxFramerate = 60;
+    uint32_t m_sequence = 0;
+    uint64_t m_nextTransactionId = 1;
+    uint64_t m_lastPresentationTime = 0;
+    bool m_hasLastPresentationTime = false;
+    bool m_readyEmitted = false;
+    bool m_failureEmitted = false;
+    bool m_closedEmitted = false;
 };

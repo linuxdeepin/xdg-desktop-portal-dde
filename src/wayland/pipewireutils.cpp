@@ -105,8 +105,10 @@ spa_video_format pipewireFormatFromDRMFormat(uint32_t format)
     case DRM_FORMAT_RGB888:
         return SPA_VIDEO_FORMAT_BGR;
     default:
-        qCCritical(SCREENCAST, "failed to convert drm format 0x%08x to spa_video_format", format);
-        abort();
+        qCWarning(SCREENCAST,
+                  "failed to convert drm format 0x%08x to spa_video_format",
+                  format);
+        return SPA_VIDEO_FORMAT_UNKNOWN;
     }
 }
 

@@ -16,15 +16,15 @@ class ToplevelPipeWireStream : public AbstractPipeWireStream
 public:
     ToplevelPipeWireStream(QPointer<ScreenCastContext> context,
                          PortalCommon::CursorModes mode,
-                         ToplevelInfo *toplevel,
+                         const ToplevelInfoPtr &toplevel,
                          QObject *parent = nullptr);
+    ~ToplevelPipeWireStream() override;
 
     int startScreencast() override;
-    void startframeCapture() override;
 
 private Q_SLOTS:
     void handleToplevelClosed();
 
 private:
-    ToplevelInfo *m_toplevel = nullptr;
+    ToplevelInfoPtr m_toplevel;
 };

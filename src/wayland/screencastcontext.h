@@ -11,6 +11,7 @@
 #include "toplevelmodel.h"
 
 #include <QObject>
+#include <QElapsedTimer>
 
 #include <gbm.h>
 #include <xf86drm.h>
@@ -18,6 +19,8 @@
 #include <spa/param/video/format-utils.h>
 
 #include <QList>
+
+#include <memory>
 
 #define TIMESPEC_NSEC_PER_SEC 1000000000L
 
@@ -45,7 +48,10 @@ public:
     bool outputImageCaptureSourceManagerActive() const;
     bool foreignToplevelImageCaptureSourceManagerActive() const;
     bool imageCopyCaptureManagerActive() const;
-    QList<ToplevelInfo*> toplevels() const;
+    bool foreignToplevelListActive() const;
+    bool pipeWireAvailable();
+    QList<ToplevelInfoPtr> toplevels() const;
+    bool containsToplevel(const QString &identifier) const;
     static gbm_device *createGBMDeviceFromDRMDevice(drmDevice *device);
 
 private Q_SLOTS:
@@ -56,23 +62,28 @@ private Q_SLOTS:
     void handleIdentifierChanged(const QString &identifier);
 
 private:
+    void initializeToplevelList();
+    std::shared_ptr<PipeWireCore> pipeWireCore();
+
     friend class PipeWireStream;
     friend class AbstractPipeWireStream;
     friend class OutputPipeWireStream;
     friend class ToplevelPipeWireStream;
 
-    PipeWireCore *m_pwCore;
+    std::shared_ptr<PipeWireCore> m_pwCore;
+    QElapsedTimer m_pipeWireRetryTimer;
     WLShm *m_shm;
     LinuxDmaBufV1 *m_linuxDmaBuf;
     OutputImageCaptureSourceManager *m_outputImageCaptureSourceManager;
     ForeignToplevelImageCaptureSourceManager *m_foreignToplevelImageCaptureSourceManager;
     ImageCopyCaptureManager *m_imageCopyCaptureManager;
-    ForeignToplevelList *m_foreignToplevelList;
-    QList<ToplevelInfo*> m_toplevels;
+    ForeignToplevelListPtr m_foreignToplevelList;
+    QList<ToplevelInfoPtr> m_toplevels;
     bool m_linuxDmaBufInterfaceActive;
     bool m_shmInterfaceActive;
     bool m_outputImageCaptureSourceManagerActive;
     bool m_foreignToplevelImageCaptureSourceManagerActive;
     bool m_imageCopyCaptureManagerActive;
     bool m_foreignToplevelListActive;
+    bool m_toplevelListInitialized = false;
 };
