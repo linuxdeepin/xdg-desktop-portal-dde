@@ -1,3 +1,10 @@
+xdg-desktop-portal-dde (1.1.11) unstable; urgency=medium
+
+  * i18n: Translate xdg-desktop-portal-dde_en.ts in ar (#132)
+  * fix(screencast): OBS could not use PipeWire for screen recording
+
+ -- zhangkun <zhangkun2@uniontech.com>  Thu, 10 Sep 2026 20:28:23 +0800
+
 xdg-desktop-portal-dde (1.1.10) unstable; urgency=medium
 
   * fix(filechooser): return selected save filter
