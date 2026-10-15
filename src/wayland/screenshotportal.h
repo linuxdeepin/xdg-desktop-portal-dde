@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2024 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -6,6 +6,7 @@
 
 #include "abstractwaylandportal.h"
 
+#include <QDBusMessage>
 #include <QDBusObjectPath>
 #include <QObject>
 
@@ -13,12 +14,12 @@ class ScreenshotPortalWayland : public AbstractWaylandPortal
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Screenshot")
+    Q_PROPERTY(uint version READ version CONSTANT)
 
 public:
-    ScreenshotPortalWayland(PortalWaylandContext *context);
+    explicit ScreenshotPortalWayland(PortalWaylandContext *context);
 
-    QString fullScreenShot();
-    QString captureInteractively();
+    uint version() const { return 2; }
 
 public Q_SLOTS:
     uint PickColor(const QDBusObjectPath &handle,
@@ -26,9 +27,11 @@ public Q_SLOTS:
                    const QString &parent_window,
                    const QVariantMap &options,
                    QVariantMap &results);
-    uint Screenshot(const QDBusObjectPath &handle,
+    void Screenshot(const QDBusObjectPath &handle,
                     const QString &app_id,
                     const QString &parent_window,
                     const QVariantMap &options,
-                    QVariantMap &results);
+                    const QDBusMessage &message,
+                    uint &replyResponse,
+                    QVariantMap &replyResults);
 };
