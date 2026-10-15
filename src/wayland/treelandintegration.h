@@ -9,13 +9,15 @@
 #include "toplevelmodel.h"
 
 #include <QDBusArgument>
+#include <QScreen>
 
 struct Stream {
-    AbstractPipeWireStream *stream = nullptr;
-    uint nodeId;
+    QPointer<AbstractPipeWireStream> stream;
+    uint nodeId = 0;
+    QPointer<QScreen> output;
     QVariantMap map;
     bool isValid() const { return stream; }
-    void close() { stream->deleteLater(); }
+    void close() const { if (stream) stream->deleteLater(); }
 };
 
 typedef QList<Stream> Streams;
@@ -37,10 +39,13 @@ public:
     void init();
     bool isStreamingEnbled() const;
     bool isStreamingAvailable() const;
+    bool isOutputStreamingAvailable() const;
+    bool isToplevelStreamingAvailable() const;
 
     Stream startStreamingOutput(QScreen *screen, PortalCommon::CursorModes mode);
     // Stream startStreamingRegion(const QRect &region, PortalCommon::CursorModes mode);
     Stream startStreamingToplevel(ToplevelInfo *toplevel, PortalCommon::CursorModes mode);
+    QList<ToplevelInfo *> toplevels() const;
 
     Stream startStreaming(AbstractPipeWireStream *stream, const QVariantMap &streamOptions);
     void stopStreaming(uint nodeId);

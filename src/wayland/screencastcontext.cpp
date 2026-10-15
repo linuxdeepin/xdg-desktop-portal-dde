@@ -33,7 +33,7 @@ ScreenCastContext::ScreenCastContext(QObject *parent)
     });
 
     m_shmInterfaceActive = m_shm->isActive();
-    connect(m_shm, &LinuxDmaBufV1::activeChanged, this, [this]{
+    connect(m_shm, &WLShm::activeChanged, this, [this]{
         m_shmInterfaceActive = m_shm->isActive();
     });
 

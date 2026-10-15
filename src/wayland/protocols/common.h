@@ -16,5 +16,6 @@ inline QtWaylandClient::QWaylandIntegration *waylandIntegration()
 
 inline QPointer<QtWaylandClient::QWaylandDisplay> waylandDisplay()
 {
-    return waylandIntegration()->display();
+    auto *integration = waylandIntegration();
+    return integration ? integration->display() : nullptr;
 }

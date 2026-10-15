@@ -5,6 +5,7 @@
 #pragma once
 
 #include "screencastsession.h"
+#include "protocols/virtualinput.h"
 #include "portalcommon.h"
 
 #include <QVariantMap>
@@ -32,11 +33,22 @@ public:
     void setClipboardEnabled(bool enabled);
 
     void acquireStreamingInput();
+    bool starting() const { return m_starting; }
+    bool started() const { return m_started; }
+    bool closedSession() const { return m_closed; }
+    void setStarting(bool starting) { m_starting = starting; }
+    void setStarted() { m_starting = false; m_started = true; Q_EMIT startedSuccessfully(); }
+    bool inputAcquired() const { return m_acquired; }
+    VirtualInput *virtualInput() const { return m_virtualInput.get(); }
     void refreshDescription() override;
+
+    void setEisCookie(int cookie);
+    int eisCookie() const;
 
     SessionType type() const override;
 
 Q_SIGNALS:
+    void startedSuccessfully();
     void deviceTypesChanged();
     void screenSharingEnabledChanged();
     void clipboardEnabledChanged();
@@ -46,4 +58,9 @@ private:
     bool m_clipboardEnabled;
     PortalCommon::DeviceTypes m_deviceTypes;
     bool m_acquired = false;
+    bool m_starting = false;
+    bool m_started = false;
+    bool m_closed = false;
+    std::unique_ptr<VirtualInput> m_virtualInput;
+    int m_cookie = 0;
 };
