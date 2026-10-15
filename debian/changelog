@@ -1,3 +1,9 @@
+xdg-desktop-portal-dde (1.1.12) unstable; urgency=medium
+
+  * i18n: Translate xdg-desktop-portal-dde_en.ts in mn (#135)
+
+ -- zhangkun <zhangkun2@uniontech.com>  Thu, 15 Oct 2026 21:34:15 +0800
+
 xdg-desktop-portal-dde (1.1.11) unstable; urgency=medium
 
   * i18n: Translate xdg-desktop-portal-dde_en.ts in ar (#132)
