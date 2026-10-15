@@ -22,13 +22,14 @@ public:
 
     PortalCommon::CursorModes cursorMode() const;
     bool multipleSources() const;
-    PortalCommon::SourceType types() const;
+    PortalCommon::SourceTypes types() const;
 
     SessionType type() const override { return SessionType::ScreenCast; }
 
     void setRestoreData(const QVariant &restoreData) { m_restoreData = restoreData; }
 
     QVariant restoreData() const { return m_restoreData; }
+    bool restoreRequested() const { return m_restoreData.isValid(); }
 
     void setPersistMode(PortalCommon::PersistMode persistMode);
 
@@ -38,7 +39,7 @@ public:
     {
         return m_streams;
     }
-    void setStreams(const Streams &streams);
+    bool setStreams(const Streams &streams);
     virtual void refreshDescription() { }
 
 protected:
@@ -47,11 +48,11 @@ protected:
 private:
     bool m_multipleSources = false;
     PortalCommon::CursorModes m_cursorMode = PortalCommon::Hidden;
-    PortalCommon::SourceType m_types = PortalCommon::Any;
+    PortalCommon::SourceTypes m_types = PortalCommon::Monitor;
     PortalCommon::PersistMode m_persistMode = PortalCommon::NoPersist;
     QVariant m_restoreData;
 
-    void streamClosed();
+    void streamClosed(AbstractPipeWireStream *stream);
     Streams m_streams;
     friend class RemoteDesktopPortal;
 };

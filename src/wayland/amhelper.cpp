@@ -7,10 +7,16 @@
 
 #include <QDBusInterface>
 #include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QDBusReply>
 #include <QDBusMetaType>
+#include <QDBusVariant>
 
 #include <DUtil>
+
+#include <utility>
 
 static const QString AM_DBUS_SERVICE = "org.desktopspec.ApplicationManager1";
 static const QString AM_DBUS_APPLICATION_INTERFACE = "org.desktopspec.ApplicationManager1.Application";
@@ -72,6 +78,54 @@ QString nameFromAM(const QString &appID)
     }
 
     return name;
+}
+
+void nameFromAMAsync(const QString &appID,
+                     QObject *context,
+                     std::function<void(QString)> callback)
+{
+    if (!context || !callback) {
+        return;
+    }
+
+    if (appID.isEmpty()) {
+        callback(appID);
+        return;
+    }
+
+    const QString path = "/org/desktopspec/ApplicationManager1/" + DUtil::escapeToObjectPath(appID);
+    QDBusMessage message = QDBusMessage::createMethodCall(
+            AM_DBUS_SERVICE,
+            path,
+            QStringLiteral("org.freedesktop.DBus.Properties"),
+            QStringLiteral("Get"));
+    message << AM_DBUS_APPLICATION_INTERFACE << QStringLiteral("Name");
+
+    auto *watcher = new QDBusPendingCallWatcher(
+            QDBusConnection::sessionBus().asyncCall(message),
+            context);
+    QObject::connect(watcher,
+                     &QDBusPendingCallWatcher::finished,
+                     context,
+                     [appID, callback = std::move(callback)](QDBusPendingCallWatcher *watcher) mutable {
+        QString name = appID;
+        const QDBusPendingReply<QDBusVariant> reply = *watcher;
+        if (reply.isError()) {
+            qCDebug(PORTAL_COMMON) << "failed to get Name property asynchronously:"
+                                   << reply.error().message();
+        } else {
+            const QString resolvedName = getLocaleOrDefaultValue(
+                    qdbus_cast<QStringMap>(reply.value().variant()),
+                    locale,
+                    DEFAULT_KEY);
+            if (!resolvedName.isEmpty()) {
+                name = resolvedName;
+            }
+        }
+
+        watcher->deleteLater();
+        callback(std::move(name));
+    });
 }
 
 }

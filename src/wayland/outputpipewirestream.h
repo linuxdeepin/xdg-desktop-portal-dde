@@ -19,7 +19,6 @@ public:
                          QObject *parent = nullptr);
 
     int startScreencast() override;
-    void startframeCapture() override;
 
 private Q_SLOTS:
     void handleScreenRemoved(QScreen *screen);
