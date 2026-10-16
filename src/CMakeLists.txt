@@ -75,11 +75,6 @@ set(SRC
 add_executable(${PROJECT_NAME}
     ${SRC})
 
-qt6_generate_wayland_protocol_client_sources(${PROJECT_NAME}
-    FILES
-    ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-personalization-manager-v1.xml
-)
-
 target_link_libraries(${PROJECT_NAME} PUBLIC
     Dtk6::Widget
     Qt::Core
