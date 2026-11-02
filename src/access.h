@@ -15,7 +15,7 @@ public:
     explicit AccessPortal(QObject *parent);
     ~AccessPortal() = default;
 
-public slots:
+public Q_SLOTS:
     uint AccessDialog(const QDBusObjectPath &handle,
                       const QString &app_id,
                       const QString &parent_window,

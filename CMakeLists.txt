@@ -4,6 +4,8 @@ project(xdg-desktop-portal-dde
     VERSION 1.0.0
 )
 
+add_compile_definitions(QT_NO_KEYWORDS)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

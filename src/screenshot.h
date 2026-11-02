@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -24,7 +24,7 @@ public:
     explicit ScreenshotPortal(QObject *parent);
     ~ScreenshotPortal() = default;
 
-public slots:
+public Q_SLOTS:
     uint PickColor(const QDBusObjectPath &handle,
                    const QString &app_id,
                    const QString &parent_window,

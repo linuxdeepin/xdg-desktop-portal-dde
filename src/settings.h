@@ -26,12 +26,12 @@ public:
     ~SettingsPortal() = default;
     bool eventFilter(QObject *obj, QEvent *event) override;
 
-public slots:
+public Q_SLOTS:
     QMap<QString, QVariantMap> ReadAll(const QStringList &groups);
     QDBusVariant Read(const QString &group, const QString &key, const QDBusMessage &message);
     void onPaletteChanged(const QPalette &palette);
 
-signals:
+Q_SIGNALS:
     void SettingChanged(const QString &group, const QString &key, const QDBusVariant &value);
 private:
     QDBusVariant readFdoColorScheme() const;

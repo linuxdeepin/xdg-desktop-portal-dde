@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -16,11 +16,11 @@ public:
     explicit BackgroundPortal(QObject *parent);
     ~BackgroundPortal() = default;
 
-public slots:
+public Q_SLOTS:
     bool EnableAutostart(const QString &app_id, const bool &enable, const QStringList commandline, const uint &flags);
     QVariantMap GetAppState();
     uint NotifyBackground(const QDBusObjectPath &handle, const QString &app_id, QString name, QVariantMap &results);
 
-signals:
+Q_SIGNALS:
     void RunnintApplicationsChanged();
 };
