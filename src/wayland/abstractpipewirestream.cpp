@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2025 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -646,7 +646,7 @@ void AbstractPipeWireStream::buildFormats(spa_pod_builder *builder, wl_array *pa
 {
     if (!m_avoidDMAbufs) {
         uint32_t last_format = DRM_FORMAT_INVALID;
-        foreach (struct DRMFormatModifierPair *formatPairvar, std::as_const(m_currentConstraints.dmabuf_format_modifier_pairs)) {
+        Q_FOREACH (struct DRMFormatModifierPair *formatPairvar, std::as_const(m_currentConstraints.dmabuf_format_modifier_pairs)) {
             if (last_format == formatPairvar->fourcc) {
                 continue;
             }
@@ -668,7 +668,7 @@ void AbstractPipeWireStream::buildFormats(spa_pod_builder *builder, wl_array *pa
         }
     }
 
-    foreach (struct xdpw_shm_format *format, std::as_const(m_currentConstraints.shm_formats)) {
+    Q_FOREACH (struct xdpw_shm_format *format, std::as_const(m_currentConstraints.shm_formats)) {
         enum spa_video_format pw_format = PipeWireutils::pipewireFormatFromDRMFormat(format->fourcc);
         if (pw_format != SPA_VIDEO_FORMAT_UNKNOWN) {
             addPod(params, buildFormat(builder, pw_format,
@@ -709,10 +709,10 @@ bool AbstractPipeWireStream::pipewireBufferConstraintsMove(PipewireBufferConstra
 
 void AbstractPipeWireStream::pipewireBufferConstraintsFinish(PipewireBufferConstraints *constraints)
 {
-    foreach (struct xdpw_shm_format *fmt, constraints->shm_formats) {
+    Q_FOREACH (struct xdpw_shm_format *fmt, constraints->shm_formats) {
         delete fmt;
     }
-    foreach (struct DRMFormatModifierPair *formatPair, m_currentConstraints.dmabuf_format_modifier_pairs) {
+    Q_FOREACH (struct DRMFormatModifierPair *formatPair, m_currentConstraints.dmabuf_format_modifier_pairs) {
         delete formatPair;
     }
 
@@ -773,7 +773,7 @@ void AbstractPipeWireStream::createImageCaptureFrame()
 
     if (m_currentFrame.pipeWireSourceBuffer) {
         m_frame->attach_buffer(m_currentFrame.pipeWireSourceBuffer->buffer);
-        foreach (PipeWireSourceBuffer *buffer, std::as_const(m_buffers)) {
+        Q_FOREACH (PipeWireSourceBuffer *buffer, std::as_const(m_buffers)) {
             for(QRegion::const_iterator it = buffer->damage.begin(); it != buffer->damage.end(); ++it) {
                 const QRect &rect = *it;
                 m_frame->damaged(rect.x(), rect.y(), rect.width(), rect.height());
@@ -841,7 +841,7 @@ void AbstractPipeWireStream::handleCaptureSessionShmFormatChanged(uint32_t forma
 
     char *fmt_name = drmGetFormatName(fourcc);
     struct xdpw_shm_format *fmt;
-    foreach (struct xdpw_shm_format *fmt, std::as_const(m_pendingConstraints.shm_formats)) {
+    Q_FOREACH (struct xdpw_shm_format *fmt, std::as_const(m_pendingConstraints.shm_formats)) {
         if (fmt->fourcc == fourcc) {
             qCDebug(SCREENCAST, "ext: skipping duplicated format: %s (%X)", fmt_name, fourcc);
             free(fmt_name);
@@ -887,7 +887,7 @@ void AbstractPipeWireStream::handleCaptureSessionDmabufFormatChanged(uint32_t fo
     wl_array_for_each(p, modifiers) {
         uint64_t *modifier = (uint64_t *)(p);
         bool newPair = true;
-        foreach (struct DRMFormatModifierPair *tmp, std::as_const(m_pendingConstraints.dmabuf_format_modifier_pairs)) {
+        Q_FOREACH (struct DRMFormatModifierPair *tmp, std::as_const(m_pendingConstraints.dmabuf_format_modifier_pairs)) {
             if (tmp->fourcc == format && tmp->modifier == *modifier) {
                 newPair = false;
                 break;
@@ -921,7 +921,7 @@ void AbstractPipeWireStream::handleCaptureSessionDone()
 {
     qCDebug(SCREENCAST, "ext: done handler");
 
-    foreach (struct xdpw_shm_format *fmt, m_pendingConstraints.shm_formats) {
+    Q_FOREACH (struct xdpw_shm_format *fmt, m_pendingConstraints.shm_formats) {
         int bpp = PipeWireutils::pipewireBPPFromDrmFourcc(fmt->fourcc);
         assert(bpp > 0);
         fmt->stride = bpp * m_pendingConstraints.width;
@@ -950,7 +950,7 @@ void AbstractPipeWireStream::handleFrameDamage(int32_t x, int32_t y, int32_t wid
 {
     qCDebug(SCREENCAST) << "ext: damage:" << x << y << width << height;
 
-    foreach(PipeWireSourceBuffer *buffer, m_buffers) {
+    Q_FOREACH(PipeWireSourceBuffer *buffer, m_buffers) {
         buffer->damage += QRect(x, y, width, height);
     }
 }
@@ -1088,7 +1088,7 @@ void AbstractPipeWireStream::queryDmabufModifiers(uint32_t drm_format, uint64_t 
 {
     uint32_t idx = 0;
     struct gbm_device *gbm = m_currentConstraints.gbm;
-    foreach (struct DRMFormatModifierPair *fm_pair, std::as_const(m_currentConstraints.dmabuf_format_modifier_pairs)) {
+    Q_FOREACH (struct DRMFormatModifierPair *fm_pair, std::as_const(m_currentConstraints.dmabuf_format_modifier_pairs)) {
         if (fm_pair->fourcc == drm_format &&
             (fm_pair->modifier == DRM_FORMAT_MOD_INVALID ||
              gbm_device_get_format_modifier_plane_count(gbm, fm_pair->fourcc, fm_pair->modifier) > 0)) {
@@ -1105,7 +1105,7 @@ uint32_t AbstractPipeWireStream::countDmabufModifiers(uint32_t drm_format)
 
     uint32_t modifiers = 0;
     struct gbm_device *gbm = m_currentConstraints.gbm;
-    foreach (struct DRMFormatModifierPair *fm_pair, std::as_const(constraints->dmabuf_format_modifier_pairs)) {
+    Q_FOREACH (struct DRMFormatModifierPair *fm_pair, std::as_const(constraints->dmabuf_format_modifier_pairs)) {
         if (fm_pair->fourcc == drm_format &&
             (fm_pair->modifier == DRM_FORMAT_MOD_INVALID ||
              gbm_device_get_format_modifier_plane_count(gbm, fm_pair->fourcc, fm_pair->modifier) > 0))
@@ -1133,7 +1133,7 @@ PipeWireSourceBuffer *AbstractPipeWireStream::createPipeWireSourceBuffer(PortalC
 
     switch (bufferType) {
     case PortalCommon::SHM:
-        foreach (struct xdpw_shm_format *tmp, m_currentConstraints.shm_formats) {
+        Q_FOREACH (struct xdpw_shm_format *tmp, m_currentConstraints.shm_formats) {
             if (tmp->fourcc == format) {
                 found = true;
                 fmt = tmp;
@@ -1277,7 +1277,7 @@ bool AbstractPipeWireStream::hasDrmFourcc(uint32_t format)
         return false;
     }
     if (!m_avoidDMAbufs) {
-        foreach(struct DRMFormatModifierPair *fm_pair, std::as_const(m_currentConstraints.dmabuf_format_modifier_pairs)) {
+        Q_FOREACH(struct DRMFormatModifierPair *fm_pair, std::as_const(m_currentConstraints.dmabuf_format_modifier_pairs)) {
             if (fm_pair->fourcc == format) {
                 return true;
             }
