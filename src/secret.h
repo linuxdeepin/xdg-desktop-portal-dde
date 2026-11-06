@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -20,7 +20,7 @@ public:
     SecretPortal(QObject *parent);
     ~SecretPortal() = default;
 
-public slots:
+public Q_SLOTS:
     uint RetrieveSecret(const QDBusObjectPath &handle,
                         const QString &app_id,
                         const QDBusUnixFileDescriptor &fd,

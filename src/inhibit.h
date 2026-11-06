@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -18,10 +18,10 @@ public:
     explicit InhibitPortal(QObject *parent);
     ~InhibitPortal() = default;
 
-public slots:
+public Q_SLOTS:
     void
     Inhibit(const QDBusObjectPath &handle, const QString &app_id, const QString &window, uint flags, const QVariantMap &options);
 
-private slots:
+private Q_SLOTS:
     void onCloseRequested(const QVariant &data);
 };

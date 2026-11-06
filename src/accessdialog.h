@@ -21,7 +21,7 @@ class AccessDialog : public DDialog
 public:
     explicit AccessDialog(const QString &app_id,const QString &parent_window,const QString &title,const QString &subtitle,const QString &body, const QVariantMap &options);
     ~AccessDialog();
-private slots:
+private Q_SLOTS:
     void updateDenyButtonText();
     void onTimeout();
 private:

@@ -15,7 +15,7 @@ public:
     explicit AccountPortal(QObject *parent);
     ~AccountPortal() = default;
 
-public slots:
+public Q_SLOTS:
     uint GetUserInformation(const QDBusObjectPath &handle,
                             const QString &app_id,
                             const QString &window,

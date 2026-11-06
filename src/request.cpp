@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -34,6 +34,6 @@ void Request::Close(const QDBusMessage &message)
     QDBusMessage messageReply = message.createReply();
     QDBusConnection::sessionBus().send(messageReply);
 
-    emit closeRequested(m_data);
+    Q_EMIT closeRequested(m_data);
     deleteLater();
 }

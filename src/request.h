@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -19,10 +19,10 @@ public:
     Request(const QDBusObjectPath &handle, const QVariant &data, QObject *parent = nullptr);
     ~Request();
 
-public slots:  // DBus methods
+public Q_SLOTS:  // DBus methods
     Q_SCRIPTABLE void Close(const QDBusMessage &message);
 
-signals:
+Q_SIGNALS:
     void closeRequested(const QVariant &data);
 
 private:

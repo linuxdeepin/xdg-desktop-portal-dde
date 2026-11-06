@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2025 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -17,7 +17,7 @@ ToplevelPipeWireStream::ToplevelPipeWireStream(QPointer<ScreenCastContext> conte
     : AbstractPipeWireStream(context, mode, parent)
     , m_toplevel(toplevel)
 {
-    foreach (auto screen, QGuiApplication::screens()) {
+    Q_FOREACH (auto screen, QGuiApplication::screens()) {
         qreal refreshRate = screen->refreshRate();
         if (refreshRate > m_framerate) {
             m_framerate = refreshRate;

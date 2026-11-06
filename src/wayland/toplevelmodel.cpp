@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2025 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -131,7 +131,7 @@ void ToplevelListModel::handleToplevelAdded(ForeignToplevelHandle *toplevel)
 
 void ToplevelListModel::handleFinished()
 {
-    foreach (ToplevelInfo *info, m_toplevels) {
+    Q_FOREACH (ToplevelInfo *info, m_toplevels) {
         delete info;
     }
     m_toplevels.clear();
@@ -178,7 +178,7 @@ void ToplevelListModel::handleToplevelDone()
 void ToplevelListModel::handleToplevelTitleChanged(const QString &title)
 {
     auto handle = static_cast<ForeignToplevelHandle *>(sender());
-    foreach (ToplevelInfo *info, m_toplevels) {
+    Q_FOREACH (ToplevelInfo *info, m_toplevels) {
         if (info->handle == handle) {
             info->windowTitle = title;
             return;
@@ -189,7 +189,7 @@ void ToplevelListModel::handleToplevelTitleChanged(const QString &title)
 void ToplevelListModel::handleToplevelAppIdChanged(const QString &appId)
 {
     auto handle = static_cast<ForeignToplevelHandle *>(sender());
-    foreach (ToplevelInfo *info, m_toplevels) {
+    Q_FOREACH (ToplevelInfo *info, m_toplevels) {
         if (info->handle == handle) {
             info->appID = appId;
             return;
@@ -200,7 +200,7 @@ void ToplevelListModel::handleToplevelAppIdChanged(const QString &appId)
 void ToplevelListModel::handleIdentifierChanged(const QString &identifier)
 {
     auto handle = static_cast<ForeignToplevelHandle *>(sender());
-    foreach (ToplevelInfo *info, m_toplevels) {
+    Q_FOREACH (ToplevelInfo *info, m_toplevels) {
         if (info->handle == handle) {
             info->identifier = identifier;
             return;

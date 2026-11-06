@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2025 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -170,7 +170,7 @@ void ScreenCastContext::handleToplevelAdded(ForeignToplevelHandle *toplevel)
 
 void ScreenCastContext::handleFinished()
 {
-    foreach (ToplevelInfo *info, m_toplevels) {
+    Q_FOREACH (ToplevelInfo *info, m_toplevels) {
         delete info;
     }
     m_toplevels.clear();
@@ -192,7 +192,7 @@ void ScreenCastContext::handleToplevelClosed()
 void ScreenCastContext::handleToplevelAppIdChanged(const QString &appId)
 {
     auto handle = static_cast<ForeignToplevelHandle *>(sender());
-    foreach (ToplevelInfo *info, m_toplevels) {
+    Q_FOREACH (ToplevelInfo *info, m_toplevels) {
         if (info->handle == handle) {
             info->appID = appId;
             return;
@@ -203,7 +203,7 @@ void ScreenCastContext::handleToplevelAppIdChanged(const QString &appId)
 void ScreenCastContext::handleIdentifierChanged(const QString &identifier)
 {
     auto handle = static_cast<ForeignToplevelHandle *>(sender());
-    foreach (ToplevelInfo *info, m_toplevels) {
+    Q_FOREACH (ToplevelInfo *info, m_toplevels) {
         if (info->handle == handle) {
             info->identifier = identifier;
             return;

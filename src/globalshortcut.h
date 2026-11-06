@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -18,7 +18,7 @@ public:
     explicit GlobalShortcutPortal(QObject *parent);
     ~GlobalShortcutPortal() = default;
 
-public slots:
+public Q_SLOTS:
     uint CreateSession(const QDBusObjectPath &handle,
                        const QDBusObjectPath &session_handle,
                        const QString &app_id,

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021 - 2022 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2021 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -18,11 +18,11 @@ public:
     explicit NotificationPortal(QObject *parent);
     ~NotificationPortal() = default;
 
-public slots:
+public Q_SLOTS:
     void AddNotification(const QString &app_id, const QString &id, const QVariantMap &notification);
     void RemoveNotification(const QString &app_id, const QString &id);
 
-private slots:
+private Q_SLOTS:
     void actionInvoked(uint nId, const QString &action);
     void clearTimeoutData();
 
