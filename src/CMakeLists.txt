@@ -1,5 +1,5 @@
 find_package(
-    Qt6 CONFIG REQUIRED COMPONENTS
+    Qt6 6.8 CONFIG REQUIRED COMPONENTS
     Core
     Concurrent
     DBus
@@ -59,6 +59,16 @@ set(SRC
     access.h
     globalshortcut.h
     globalshortcut.cpp
+    globalshortcuttypes.h
+    globalshortcuttypes.cpp
+    globalshortcutrequest.h
+    globalshortcutrequest.cpp
+    globalshortcutsession.h
+    globalshortcutsession.cpp
+    globalshortcutscontroller.h
+    globalshortcutscontroller.cpp
+    globalshortcutsmanagement.h
+    globalshortcutsmanagement.cpp
     lockdown.h
     lockdown.cpp
     secret.h
@@ -72,7 +82,7 @@ set(SRC
     accessdialog.cpp
 )
 
-add_executable(${PROJECT_NAME}
+qt_add_executable(${PROJECT_NAME}
     ${SRC})
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
