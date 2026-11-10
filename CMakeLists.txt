@@ -7,14 +7,14 @@ project(xdg-desktop-portal-dde
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_AUTOMOC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX /usr)
 endif ()
 
-include(GNUInstallDirs)
+find_package(Qt6 REQUIRED COMPONENTS Core)
+qt_standard_project_setup()
 include(CTest)
 
 add_subdirectory(src)

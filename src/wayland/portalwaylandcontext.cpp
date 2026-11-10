@@ -1,8 +1,9 @@
-// SPDX-FileCopyrightText: 2024-2026 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2024 - 2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "portalwaylandcontext.h"
+#include "../globalshortcut.h"
 #include "screenshotportal.h"
 #include "screencastportal.h"
 #include "wallpaper.h"
@@ -24,4 +25,5 @@ PortalWaylandContext::PortalWaylandContext(QObject *parent)
     new ScreenshotPortalWayland(this);
     new ScreencastPortalWayland(this);
     new WallPaperPortal(this);
+    new GlobalShortcutPortal(this);
 }
