@@ -7,11 +7,11 @@ Build-Depends:
   dbus-x11,
   debhelper (>= 11~),
   pkgconf,
-  qt6-base-dev,
-  qt6-base-private-dev,
+  qt6-base-dev (>= 6.8.0~),
+  qt6-base-private-dev (>= 6.8.0~),
   qt6-wayland,
-  qt6-wayland-dev,
-  qt6-wayland-private-dev,
+  qt6-wayland-dev (>= 6.8.0~),
+  qt6-wayland-private-dev (>= 6.8.0~),
   qt6-wayland-dev-tools,
   libpipewire-0.3-dev,
   libwayland-dev,
@@ -24,14 +24,16 @@ Build-Depends:
   wayland-protocols,
   qt6-declarative-dev,
   libdtk6declarative-dev,
-  qt6-tools-dev,
+  qt6-tools-dev (>= 6.8.0~),
 Standards-Version: 4.5.0
 
 Package: xdg-desktop-portal-dde
 Architecture: any
 Depends:
   ${shlibs:Depends},
-  ${misc:Depends}
+  ${misc:Depends},
+  dde-services (>= 1.0.51~),
+  xdg-desktop-portal (>= 1.22.0~)
 Description: Dtk portal backend for xdg-desktop-portal
   xdg-desktop-portal-dde provide a DTK implementation for the
   desktop-agnostic xdg-desktop-portal service. This allows sandboxed

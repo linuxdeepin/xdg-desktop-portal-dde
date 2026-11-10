@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!--
+ SPDX-FileCopyrightText: 2026 UnionTech Software Technology Co., Ltd.
+ SPDX-License-Identifier: LGPL-3.0-or-later
+-->
+
+<node name="/org/deepin/dde/GlobalShortcutsProvider1">
+  <interface name="org.deepin.dde.GlobalShortcutsProvider1">
+    <method name="BeginBind">
+      <arg type="s" name="request_id" direction="in"/>
+      <arg type="o" name="session_handle" direction="in"/>
+      <arg type="s" name="app_id" direction="in"/>
+      <arg type="s" name="parent_window" direction="in"/>
+      <arg type="a(ssasasb)" name="shortcuts" direction="in"/>
+    </method>
+
+    <method name="ConfigureShortcuts">
+      <arg type="o" name="session_handle" direction="in"/>
+      <arg type="s" name="app_id" direction="in"/>
+      <arg type="s" name="parent_window" direction="in"/>
+      <arg type="a(ssssasasbb)" name="shortcuts" direction="in"/>
+      <arg type="a{sv}" name="options" direction="in"/>
+    </method>
+
+    <method name="CancelRequest">
+      <arg type="s" name="request_id" direction="in"/>
+    </method>
+
+    <property name="version" type="u" access="read"/>
+  </interface>
+</node>

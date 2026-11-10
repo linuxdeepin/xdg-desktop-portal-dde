@@ -10,6 +10,7 @@ xdg-desktop-portal 在 Deepin desktop 环境的后端实现
 * org.freedesktop.impl.portal.WallPaper
 * org.freedesktop.impl.portal.Notification
 * org.freedesktop.impl.portal.FileChooser
+* org.freedesktop.impl.portal.GlobalShortcuts（v2；需配套 dde-services）
 
 ### 待实现
 
@@ -27,7 +28,7 @@ xdg-desktop-portal 在 Deepin desktop 环境的后端实现
 
 ### 构建依赖
 
-* Qt >= 5.12
+* Qt 6
 
 ### Installation
 
@@ -52,9 +53,13 @@ cmake --build build -j$(nproc)
 
 [ashpd-demo](https://github.com/bilelmoussaoui/ashpd)
 
+GlobalShortcuts v2 的配套部署与回归步骤见
+[Portal 契约与验证](tests/PORTAL_TESTING.md)。
+需同时部署配套的 `dde-services` 插件/provider（拟定 1.0.51+）及支持
+GlobalShortcuts v2 的公共 broker（1.22+ 或完整回移版本）。
+
 ### Getting help
 
 ### License
 
 xdg-desktop-portal-dde 遵循协议 [LGPL-3.0-or-later](LICENSES)
-
