@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!--
+ SPDX-FileCopyrightText: 2026 UnionTech Software Technology Co., Ltd.
+ SPDX-License-Identifier: LGPL-3.0-or-later
+-->
+
+<node name="/org/freedesktop/portal/desktop">
+  <interface name="org.deepin.dde.impl.portal.GlobalShortcutsManagement1">
+    <method name="CompleteBind">
+      <arg type="s" name="request_id" direction="in"/>
+      <arg type="u" name="response" direction="in"/>
+      <arg type="a(ssasasb)" name="selected" direction="in"/>
+    </method>
+
+    <method name="ApplySessionShortcuts">
+      <arg type="o" name="session_handle" direction="in"/>
+      <arg type="a(ssasasb)" name="updates" direction="in"/>
+      <arg type="a(ssssasasbb)" name="bound" direction="out"/>
+    </method>
+
+    <method name="CheckSessionShortcutConflicts">
+      <arg type="o" name="session_handle" direction="in"/>
+      <arg type="a(ssasasb)" name="shortcuts" direction="in"/>
+      <arg type="a(sssss)" name="conflicts" direction="out"/>
+    </method>
+
+    <property name="version" type="u" access="read"/>
+  </interface>
+</node>

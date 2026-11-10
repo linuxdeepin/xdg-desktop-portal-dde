@@ -31,7 +31,9 @@ Package: xdg-desktop-portal-dde
 Architecture: any
 Depends:
   ${shlibs:Depends},
-  ${misc:Depends}
+  ${misc:Depends},
+  dde-services (>= 1.0.51~),
+  xdg-desktop-portal (>= 1.22.0~)
 Description: Dtk portal backend for xdg-desktop-portal
   xdg-desktop-portal-dde provide a DTK implementation for the
   desktop-agnostic xdg-desktop-portal service. This allows sandboxed
