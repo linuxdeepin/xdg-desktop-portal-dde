@@ -82,10 +82,11 @@ using OptionList = QList<Option>;
 QDBusArgument &operator<<(QDBusArgument &arg, const Option &option);
 const QDBusArgument &operator>>(const QDBusArgument &arg, Option &option);
 
+template<typename Dialog, typename ContextObject, typename Callback>
 inline void delayReply(const QDBusMessage &message,
-                       auto *dialog,
-                       auto *contextObject,
-                       auto &&callback)
+                       Dialog *dialog,
+                       ContextObject *contextObject,
+                       Callback &&callback)
 {
     message.setDelayedReply(true);
     QObject::connect(dialog, &std::remove_pointer_t<decltype(dialog)>::finished,

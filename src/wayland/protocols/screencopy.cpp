@@ -57,7 +57,9 @@ void ScreenCopyFrame::zwlr_screencopy_frame_v1_ready(uint32_t tv_sec_hi,
 ScreenCopyManager::ScreenCopyManager(QObject *parent)
     : QWaylandClientExtensionTemplate<ScreenCopyManager>(3)
     , QtWayland::zwlr_screencopy_manager_v1()
-{ }
+{
+    initialize();
+}
 
 uint32_t ScreenCopyManager::version()
 {

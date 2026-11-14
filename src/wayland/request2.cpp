@@ -22,10 +22,11 @@ Request2::Request2(const QDBusObjectPath &handle, QObject *parent, const QString
 {
     auto sessionBus = QDBusConnection::sessionBus();
     if (sessionBus.registerVirtualObject(handle.path(), this, QDBusConnection::VirtualObjectRegisterOption::SubPath)) {
-        connect(this, &Request2::closeRequested, this, [this, handle]() {
+        // Accepted/rejected dialogs also destroy their request, without Close.
+        connect(this, &QObject::destroyed, [handle] {
             QDBusConnection::sessionBus().unregisterObject(handle.path());
-            deleteLater();
         });
+        connect(this, &Request2::closeRequested, this, &QObject::deleteLater);
     } else {
         qCDebug(PORTAL_COMMON) << sessionBus.lastError().message();
         qCDebug(PORTAL_COMMON) << "Failed to register request object for" << handle.path();

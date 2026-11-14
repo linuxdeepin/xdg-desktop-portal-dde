@@ -6,6 +6,7 @@
 #include "screenshotportal.h"
 #include "screencastportal.h"
 #include "wallpaper.h"
+#include "remotedesktopportal.h"
 
 #include <QGuiApplication>
 #include <qpa/qplatformintegration.h>
@@ -23,5 +24,6 @@ PortalWaylandContext::PortalWaylandContext(QObject *parent)
 {
     new ScreenshotPortalWayland(this);
     new ScreencastPortalWayland(this);
+    new RemoteDesktopPortal(this);
     new WallPaperPortal(this);
 }

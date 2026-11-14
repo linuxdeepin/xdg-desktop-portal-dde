@@ -20,6 +20,7 @@ WLShmPool::~WLShmPool()
 WLShm::WLShm()
     : QWaylandClientExtensionTemplate<WLShm>(WLSHMVERSION)
 {
+    initialize();
 }
 
 WLShm::~WLShm()

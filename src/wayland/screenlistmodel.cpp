@@ -73,7 +73,7 @@ QHash<int, QByteArray> ScreenListModel::roleNames() const
 QList<QPointer<QScreen>> ScreenListModel::selectedOutputs(int index)
 {
     QList<QPointer<QScreen>> ret;
-    if (index > -1) {
+    if (index >= 0 && index < m_screens.size()) {
         ret << m_screens[index];
     }
     return ret;

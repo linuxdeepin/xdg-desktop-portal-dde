@@ -24,6 +24,12 @@ namespace AMHelpers
 
 void updateInfoFromAM(const QString &appID, QString &name, QString &icon)
 {
+    if (appID.isEmpty()) {
+        name = QStringLiteral("Unknown application");
+        icon = DEFAULT_ICON;
+        return;
+    }
+
     QString path = "/org/desktopspec/ApplicationManager1/" + DUtil::escapeToObjectPath(appID);
     QDBusInterface amIterface(AM_DBUS_SERVICE, path, AM_DBUS_APPLICATION_INTERFACE);
     if (!amIterface.isValid()) {
@@ -56,6 +62,9 @@ QString getLocaleOrDefaultValue(const QStringMap &value, const QString &targetKe
 
 QString nameFromAM(const QString &appID)
 {
+    if (appID.isEmpty())
+        return QStringLiteral("Unknown application");
+
     QString name = appID;
     QString path = "/org/desktopspec/ApplicationManager1/" + DUtil::escapeToObjectPath(appID);
     QDBusInterface amIterface(AM_DBUS_SERVICE, path, AM_DBUS_APPLICATION_INTERFACE);

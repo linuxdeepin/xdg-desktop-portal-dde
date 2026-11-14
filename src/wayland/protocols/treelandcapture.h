@@ -89,7 +89,9 @@ public:
     explicit TreeLandCaptureManager(QObject *parent = nullptr)
         : QWaylandClientExtensionTemplate<TreeLandCaptureManager, destruct_treeland_capture_manager>(1)
         , QtWayland::treeland_capture_manager_v1()
-    { }
+    {
+        initialize();
+    }
 
     ~TreeLandCaptureManager() override
     {

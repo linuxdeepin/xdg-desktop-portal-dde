@@ -120,6 +120,9 @@ uint ScreencastPortalWayland::SelectSources(const QDBusObjectPath &handle,
         return PortalResponse::OtherError;
     }
 
+    auto *remote = qobject_cast<RemoteDesktopSession *>(session);
+    if (remote && (remote->starting() || remote->started() || remote->appId() != app_id))
+        return PortalResponse::OtherError;
     session->setOptions(options);
     if (session->type() == Session::RemoteDesktop) {
         RemoteDesktopSession *remoteDesktopSession = qobject_cast<RemoteDesktopSession *>(session);
@@ -224,7 +227,7 @@ void ScreencastPortalWayland::Start(const QDBusObjectPath &handle,
 
     QPointer<ScreenCastSession> session = Session::getSession<ScreenCastSession>(session_handle.path());
 
-    if (!session) {
+    if (!session || session->type() == Session::RemoteDesktop) {
         qCWarning(SCREENCAST) << "Tried to call start on non-existing session " << session_handle.path();
         replyResponse = PortalResponse::OtherError;
         return;
