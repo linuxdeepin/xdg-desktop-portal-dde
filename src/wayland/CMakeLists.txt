@@ -39,6 +39,8 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     pipewireutils.cpp
     pipewirecore.h
     pipewirecore.cpp
+    sealedmemfd.h
+    sealedmemfd.cpp
     screencastportal.h
     screencastportal.cpp
     screencastcontext.h

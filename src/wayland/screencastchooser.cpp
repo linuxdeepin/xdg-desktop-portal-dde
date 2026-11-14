@@ -10,20 +10,41 @@
 
 #include <QSettings>
 #include <QStandardPaths>
+#include <QVariantMap>
 
 constexpr auto URI = "screencast";
 
-ScreenCastChooser::ScreenCastChooser( const QString &appID, PortalCommon::SourceTypes types, QObject *parent)
+ScreenCastChooser::ScreenCastChooser(const QString &appID,
+                                     PortalCommon::SourceTypes types,
+                                     bool multipleSources,
+                                     bool persistenceRequested,
+                                     QObject *parent)
     : QObject(parent)
     , m_engine(new QQmlApplicationEngine(this))
     , m_window(nullptr)
+    , m_types(types)
+    , m_multipleSources(multipleSources)
 {
     QObject::connect(m_engine, &QQmlApplicationEngine::objectCreationFailed, this, [this](){
         qCCritical(SCREENCAST, "qml create failed!");
     });
 
+    QVariantMap initialProperties;
+    initialProperties.insert(QStringLiteral("clientAppName"), appID);
+    initialProperties.insert(QStringLiteral("allowMonitor"),
+                             m_types.testFlag(PortalCommon::Monitor));
+    initialProperties.insert(QStringLiteral("allowWindow"),
+                             m_types.testFlag(PortalCommon::Window));
+    initialProperties.insert(QStringLiteral("multipleSources"), m_multipleSources);
+    initialProperties.insert(QStringLiteral("persistenceRequested"), persistenceRequested);
+    m_engine->setInitialProperties(initialProperties);
     m_engine->load(QUrl("qrc:/screencast/ScreencastChooserWindow.qml"));
-    QObject *rootObject =  m_engine->rootObjects().first();
+    if (m_engine->rootObjects().isEmpty()) {
+        qCCritical(SCREENCAST) << "xdpw: screencast chooser has no root object";
+        return;
+    }
+
+    QObject *rootObject = m_engine->rootObjects().first();
     QQuickWindow* win = qobject_cast<QQuickWindow *>(rootObject);
 
     if (win) {
@@ -31,12 +52,18 @@ ScreenCastChooser::ScreenCastChooser( const QString &appID, PortalCommon::Source
         connect(win, SIGNAL(accept()), this, SLOT(accept()));
         connect(win, SIGNAL(reject()), this, SLOT(reject()));
         m_window = win;
-        m_window->setProperty("clientAppName", QVariant::fromValue(AMHelpers::nameFromAM(appID)));
+
+        AMHelpers::nameFromAMAsync(appID, this, [this](QString resolvedName) {
+            if (m_window && !resolvedName.isEmpty()) {
+                m_window->setProperty("clientAppName", resolvedName);
+            }
+        });
     }
 }
 
 ScreenCastChooser::~ScreenCastChooser()
 {
+    m_finished = true;
     closeWindow();
 }
 
@@ -60,7 +87,13 @@ void ScreenCastChooser::handleWindowClosed()
 {
     QQuickWindow* win = qobject_cast<QQuickWindow *>(sender());
     if (win) {
+        if (m_window == win) {
+            m_window = nullptr;
+        }
         win->deleteLater();
+    }
+    if (!m_finished) {
+        reject();
     }
 }
 
@@ -72,7 +105,8 @@ QRect ScreenCastChooser::selectedRegion() const
 
 QList<QPointer<QScreen>> ScreenCastChooser::selectedOutputs() const
 {
-    if (m_window->property("viewLayoutIndex").toInt() != 0) {
+    if (!m_window
+        || !m_types.testFlag(PortalCommon::Monitor)) {
         return {};
     }
 
@@ -81,12 +115,17 @@ QList<QPointer<QScreen>> ScreenCastChooser::selectedOutputs() const
     if (!model) {
         return {};
     }
-    return model->selectedOutputs(m_window->property("outputIndex").toInt());
+    if (!m_multipleSources
+        && m_window->property("viewLayoutIndex").toInt() != 0) {
+        return {};
+    }
+    return model->selectedOutputs();
 }
 
-QList<ToplevelInfo *> ScreenCastChooser::selectedToplevels() const
+QList<ToplevelInfoPtr> ScreenCastChooser::selectedToplevels() const
 {
-    if (m_window->property("viewLayoutIndex").toInt() != 1) {
+    if (!m_window
+        || !m_types.testFlag(PortalCommon::Window)) {
         return {};
     }
 
@@ -95,12 +134,16 @@ QList<ToplevelInfo *> ScreenCastChooser::selectedToplevels() const
     if (!model) {
         return {};
     }
-    return model->selectedToplevels(m_window->property("toplevelIndex").toInt());
+    if (!m_multipleSources
+        && m_window->property("viewLayoutIndex").toInt() != 1) {
+        return {};
+    }
+    return model->selectedToplevels();
 }
 
 bool ScreenCastChooser::allowRestore() const
 {
-    return m_window->property("allowRestore").toBool();
+    return m_window && m_window->property("allowRestore").toBool();
 }
 
 QWindow *ScreenCastChooser::windowHandle() const
@@ -114,6 +157,11 @@ QWindow *ScreenCastChooser::windowHandle() const
 
 void ScreenCastChooser::reject()
 {
+    if (m_finished) {
+        return;
+    }
+
+    m_finished = true;
     Q_EMIT rejected();
     Q_EMIT finished(ScreenCastChooser::Rejected);
     deleteLater();
@@ -121,6 +169,27 @@ void ScreenCastChooser::reject()
 
 void ScreenCastChooser::accept()
 {
+    if (m_finished || !m_window) {
+        return;
+    }
+
+    const qsizetype outputCount = selectedOutputs().size();
+    const qsizetype toplevelCount = selectedToplevels().size();
+    const qsizetype sourceCount = outputCount + toplevelCount;
+    if (sourceCount == 0
+        || (!m_multipleSources && sourceCount != 1)) {
+        qCWarning(SCREENCAST)
+                << "xdpw: refusing source chooser acceptance with invalid source count"
+                << sourceCount << "multiple" << m_multipleSources;
+        return;
+    }
+
+    qCInfo(SCREENCAST) << "xdpw: source chooser accepted"
+                       << "view" << m_window->property("viewLayoutIndex").toInt()
+                       << "outputs" << outputCount
+                       << "toplevels" << toplevelCount
+                       << "multiple" << m_multipleSources;
+    m_finished = true;
     Q_EMIT accepted();
     Q_EMIT finished(ScreenCastChooser::Accepted);
     deleteLater();
