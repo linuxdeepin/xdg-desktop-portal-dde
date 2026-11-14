@@ -57,6 +57,8 @@ set(SRC
     account.cpp
     access.cpp
     access.h
+    accessdialogtypes.h
+    accessdialogtypes.cpp
     globalshortcut.h
     globalshortcut.cpp
     lockdown.h

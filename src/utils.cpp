@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "utils.h"
+#include "wayland/foreignparent.h"
 
 void Utils::setParentWindow(QWidget *w, const QString &parent_window)
 {
@@ -43,5 +44,7 @@ void Utils::setParentWindow(QWidget *w, const QString &parent_window)
 
 void Utils::setParentWindow(QWindow *w, const QString &parent_window)
 {
-    // TODO
+    if (parent_window.startsWith(QLatin1String("wayland:"))) {
+        WaylandForeignParent::setParent(w, parent_window.mid(8));
+    }
 }

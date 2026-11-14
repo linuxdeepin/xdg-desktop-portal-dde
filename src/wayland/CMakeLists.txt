@@ -24,6 +24,10 @@ add_library(xdg-desktop-portal-dde-wayland SHARED
     portalwaylandcontext.cpp
     screenshotportal.h
     screenshotportal.cpp
+    screenshotimage.h
+    screenshotimage.cpp
+    foreignparent.h
+    foreignparent.cpp
     abstractwaylandportal.h
     treelandintegration.h
     treelandintegration.cpp
@@ -93,6 +97,7 @@ qt6_generate_wayland_protocol_client_sources(xdg-desktop-portal-dde-wayland FILE
     ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-foreign-toplevel-list/ext-foreign-toplevel-list-v1.xml
     ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-image-copy-capture/ext-image-copy-capture-v1.xml
     ${WAYLANDPROTOCOlS_PKGDATADIR}/staging/ext-image-capture-source/ext-image-capture-source-v1.xml
+    ${WAYLANDPROTOCOlS_PKGDATADIR}/unstable/xdg-foreign/xdg-foreign-unstable-v2.xml
     ${TREELAND_PROTOCOLS_DATA_DIR}/treeland-wallpaper-manager-unstable-v1.xml
 )
 

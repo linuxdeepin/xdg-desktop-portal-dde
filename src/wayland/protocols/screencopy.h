@@ -20,6 +20,7 @@ class ScreenCopyFrame : public QObject, public QtWayland::zwlr_screencopy_frame_
     Q_OBJECT
 public:
     ScreenCopyFrame(struct ::zwlr_screencopy_frame_v1 *object);
+    ~ScreenCopyFrame() override;
 
 Q_SIGNALS:
     void buffer(uint32_t format, uint32_t width, uint32_t height, uint32_t stride);

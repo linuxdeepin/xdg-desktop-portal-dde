@@ -19,6 +19,9 @@ public:
     Request(const QDBusObjectPath &handle, const QVariant &data, QObject *parent = nullptr);
     ~Request();
 
+    bool isRegistered() const { return m_registered; }
+    void unregister();
+
 public slots:  // DBus methods
     Q_SCRIPTABLE void Close(const QDBusMessage &message);
 
@@ -28,4 +31,5 @@ signals:
 private:
     QDBusObjectPath m_handle;
     QVariant m_data;
+    bool m_registered = false;
 };
