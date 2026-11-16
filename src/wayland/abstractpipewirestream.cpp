@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 UnionTech Software Technology Co., Ltd.
+// SPDX-FileCopyrightText: 2025-2026 UnionTech Software Technology Co., Ltd.
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
@@ -772,12 +772,10 @@ void AbstractPipeWireStream::createImageCaptureFrame()
             &AbstractPipeWireStream::handleFrameFailed);
 
     if (m_currentFrame.pipeWireSourceBuffer) {
-        m_frame->attach_buffer(m_currentFrame.pipeWireSourceBuffer->buffer);
-        foreach (PipeWireSourceBuffer *buffer, std::as_const(m_buffers)) {
-            for(QRegion::const_iterator it = buffer->damage.begin(); it != buffer->damage.end(); ++it) {
-                const QRect &rect = *it;
-                m_frame->damaged(rect.x(), rect.y(), rect.width(), rect.height());
-            }
+        const auto *buffer = m_currentFrame.pipeWireSourceBuffer;
+        m_frame->attach_buffer(buffer->buffer);
+        for (const QRect &rect : buffer->damage) {
+            m_frame->damage_buffer(rect.x(), rect.y(), rect.width(), rect.height());
         }
 
         m_frame->capture();
