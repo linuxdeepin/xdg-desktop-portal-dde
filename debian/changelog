@@ -1,3 +1,10 @@
+xdg-desktop-portal-dde (6.2.0) unstable; urgency=medium
+
+  * fix: remove dead treeland-personalization-manager-v1 protocol
+  * fix(screencast): send buffer damage via damage_buffer request
+
+ -- zhangkun <zhangkun2@uniontech.com>  Tue, 17 Nov 2026 22:06:33 +0800
+
 xdg-desktop-portal-dde (1.1.12) unstable; urgency=medium
 
   * i18n: Translate xdg-desktop-portal-dde_en.ts in mn (#135)
