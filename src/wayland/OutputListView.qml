@@ -6,20 +6,37 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 
-ListView {
+import org.deepin.dtk 1.0 as D
+
+D.ListView {
     id: view
 
     property real itemHeight
+    property bool multipleSelection: false
+    readonly property bool hasSelection: Boolean(view.model && view.model.hasSelection)
+
+    // xdg-desktop-portal-kde accepts a single-source selection as soon as the
+    // user activates a card. Keep the same behaviour here; multi-source
+    // selection still uses the explicit accept button.
+    signal sourceActivated()
 
     highlightFollowsCurrentItem: true
     clip: true
-    ButtonGroup { id: doubleExclusiveGroup }
-    delegate: CheckDelegate {
+    delegate: D.CheckDelegate {
         width: view.width
         height: view.itemHeight
         text: screenName
-        ButtonGroup.group: doubleExclusiveGroup
-        onClicked: view.currentIndex = index
+        checkable: false
+        checked: sourceSelected
+        onClicked: {
+            view.currentIndex = index
+            if (view.multipleSelection) {
+                view.model.toggleSelection(index)
+            } else {
+                view.model.selectSingle(index)
+                view.sourceActivated()
+            }
+        }
 
         Background {
             readonly property real sideMargin: 10

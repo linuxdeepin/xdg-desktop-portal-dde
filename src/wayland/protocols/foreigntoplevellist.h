@@ -7,6 +7,8 @@
 #include <private/qwaylandclientextension_p.h>
 #include <qwayland-ext-foreign-toplevel-list-v1.h>
 
+#include <QSharedPointer>
+
 class ForeignToplevelHandle;
 
 class ForeignToplevelList
@@ -16,7 +18,10 @@ class ForeignToplevelList
     Q_OBJECT
 public:
     ForeignToplevelList(QObject *parent = nullptr);
+    ~ForeignToplevelList() override;
     uint32_t version();
+    void requestStop();
+    void releaseAfterFinished();
 
 Q_SIGNALS:
     void toplevelAdded(ForeignToplevelHandle *handle);
@@ -25,7 +30,15 @@ Q_SIGNALS:
 protected:
     void ext_foreign_toplevel_list_v1_toplevel(struct ::ext_foreign_toplevel_handle_v1 *toplevel) override;
     void ext_foreign_toplevel_list_v1_finished() override;
+
+private:
+    bool m_stopRequested = false;
+    bool m_finished = false;
+    bool m_deleteWhenFinished = false;
 };
+
+using ForeignToplevelListPtr = QSharedPointer<ForeignToplevelList>;
+ForeignToplevelListPtr createForeignToplevelList();
 
 class ForeignToplevelHandle : public QObject, public QtWayland::ext_foreign_toplevel_handle_v1
 {
