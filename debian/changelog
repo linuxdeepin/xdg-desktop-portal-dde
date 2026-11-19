@@ -1,3 +1,9 @@
+xdg-desktop-portal-dde (6.2.1) unstable; urgency=medium
+
+  * Release 6.2.1
+
+ -- zhaofangxun <zhaofangxun@uniontech.com>  Thu, 19 Nov 2026 20:52:00 +0800
+
 xdg-desktop-portal-dde (6.2.0) unstable; urgency=medium
 
   * fix: remove dead treeland-personalization-manager-v1 protocol
