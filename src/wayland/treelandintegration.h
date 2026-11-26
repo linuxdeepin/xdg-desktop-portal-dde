@@ -11,11 +11,16 @@
 #include <QDBusArgument>
 
 struct Stream {
-    AbstractPipeWireStream *stream = nullptr;
-    uint nodeId;
+    QPointer<AbstractPipeWireStream> stream;
+    uint nodeId = SPA_ID_INVALID;
     QVariantMap map;
-    bool isValid() const { return stream; }
-    void close() { stream->deleteLater(); }
+    bool isValid() const { return !stream.isNull() && nodeId != SPA_ID_INVALID; }
+    void close() const
+    {
+        if (stream) {
+            stream->deleteLater();
+        }
+    }
 };
 
 typedef QList<Stream> Streams;
@@ -37,13 +42,18 @@ public:
     void init();
     bool isStreamingEnbled() const;
     bool isStreamingAvailable() const;
+    bool isOutputStreamingAvailable() const;
+    bool isToplevelStreamingAvailable() const;
+    bool isStreamActive(AbstractPipeWireStream *stream) const;
+    bool isToplevelAvailable(const ToplevelInfoPtr &toplevel) const;
 
     Stream startStreamingOutput(QScreen *screen, PortalCommon::CursorModes mode);
     // Stream startStreamingRegion(const QRect &region, PortalCommon::CursorModes mode);
-    Stream startStreamingToplevel(ToplevelInfo *toplevel, PortalCommon::CursorModes mode);
+    Stream startStreamingToplevel(const ToplevelInfoPtr &toplevel,
+                                  PortalCommon::CursorModes mode);
 
     Stream startStreaming(AbstractPipeWireStream *stream, const QVariantMap &streamOptions);
-    void stopStreaming(uint nodeId);
+    void stopStreaming(AbstractPipeWireStream *stream);
 
 private:
     friend class ScreencastPortalWayland;

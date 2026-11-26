@@ -23,16 +23,44 @@ D.DialogWindow {
 
     property alias allowRestore: restoreCheckBox.checked
     property alias viewLayoutIndex: viewLayout.currentIndex
-    property alias outputIndex: screensView.currentIndex
-    property alias toplevelIndex: toplevelsView.currentIndex
     property var outputsModel: screensView.model
     property var toplevelsModel: toplevelsView.model
     property string clientAppName
+    property bool allowMonitor: true
+    property bool allowWindow: true
+    property bool multipleSources: false
+    property bool persistenceRequested: false
+    readonly property bool selectionValid: {
+        const monitorAllowed = root.allowMonitor
+        const windowAllowed = root.allowWindow
+        const monitorSelected = monitorAllowed && screensView.hasSelection
+        const windowSelected = windowAllowed && toplevelsView.hasSelection
+        if (root.multipleSources) {
+            return monitorSelected || windowSelected
+        }
+
+        const currentView = viewLayout.currentIndex
+
+        return (currentView === 0 && monitorSelected) ||
+               (currentView === 1 && windowSelected)
+    }
     readonly property real itemMargin: 10
     readonly property real scrollBarMargin: 50
 
     signal accept()
     signal reject()
+
+    Component.onCompleted: {
+        // ScreenListModel is populated synchronously. Match the established
+        // portal chooser behaviour by preselecting the sole available output
+        // when there is no window competing for the single-source choice.
+        if (!root.multipleSources &&
+                root.allowMonitor && screensView.count === 1 &&
+                toplevelsView.count === 0) {
+            screensView.currentIndex = 0
+            screensView.model.selectSingle(0)
+        }
+    }
 
     ColumnLayout {
         spacing: 8
@@ -54,12 +82,14 @@ D.DialogWindow {
             Layout.alignment: Qt.AlignHCenter
             Button {
                 text: qsTr("Screen")
+                visible: root.allowMonitor
                 highlighted: viewLayout.currentIndex === 0
                 flat: !highlighted
                 onClicked: viewLayout.currentIndex = 0
             }
             Button {
                 text: qsTr("Window")
+                visible: root.allowWindow
                 highlighted: viewLayout.currentIndex === 1
                 flat: !highlighted
                 onClicked: viewLayout.currentIndex = 1
@@ -78,7 +108,7 @@ D.DialogWindow {
 
             Layout.preferredWidth: parent.width
             Layout.preferredHeight: viewHeight
-            currentIndex: 0
+            currentIndex: root.allowMonitor ? 0 : 1
             Background {
                 radius: parent.radius
                 darkColor: parent.darkColor
@@ -90,7 +120,9 @@ D.DialogWindow {
                     rightMargin: root.scrollBarMargin
                     model: ScreenListModel {}
                     itemHeight: viewLayout.delegateHeight
+                    multipleSelection: root.multipleSources
                     currentIndex: -1
+                    onSourceActivated: root.accept()
                 }
             }
 
@@ -105,7 +137,9 @@ D.DialogWindow {
                     rightMargin: root.scrollBarMargin
                     model: ToplevelListModel {}
                     itemHeight: viewLayout.delegateHeight
+                    multipleSelection: root.multipleSources
                     currentIndex: -1
+                    onSourceActivated: root.accept()
                 }
             }
         }
@@ -119,7 +153,8 @@ D.DialogWindow {
                     id: restoreCheckBox
 
                     anchors.verticalCenter: parent.verticalCenter
-                    checked: true
+                    visible: root.persistenceRequested
+                    checked: root.persistenceRequested
                     text: qsTr("Allow restoring on future sessions")
                 }
             }
@@ -131,8 +166,7 @@ D.DialogWindow {
                     id: acceptBtn
 
                     text: qsTr("Accept")
-                    enabled: (root.viewLayoutIndex === 0 && root.outputIndex >= 0) ||
-                             (root.viewLayoutIndex === 1 && root.toplevelIndex >= 0)
+                    enabled: root.selectionValid
                     onClicked: root.accept();
                 }
                 D.RecommandButton {
