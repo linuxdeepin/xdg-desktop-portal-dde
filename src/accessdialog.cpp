@@ -1,94 +1,128 @@
-// Copyright (C) 2024 Wenhao Peng <pengwenhao@uniontech.com>.
+// SPDX-FileCopyrightText: 2024 - 2026 UnionTech Software Technology Co., Ltd.
+//
 // SPDX-License-Identifier: Apache-2.0 OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
 
 #include "accessdialog.h"
-#include <QWindow>
-#include <QMessageBox>
-#include <QTimer>
-#include <QPushButton>
-// X11的声明放在下面，防止编译报错
-#include <X11/Xlib.h>
 
-AccessDialog::AccessDialog(const QString &app_id, const QString &parent_window, const QString &title, const QString &subtitle, const QString &body, const QVariantMap &options) :
-    DDialog(),
-    m_titleLabel(new QLabel(this)),
-    m_subtitleLabel(new QLabel(this)),
-    m_bodyLabel(new QLabel(this)),
-    m_countdownTimer(new QTimer(this)),
-    m_denyButton(nullptr),
-    m_remainingSeconds(15)
+#include <QCheckBox>
+#include <QComboBox>
+#include <QFormLayout>
+#include <QIcon>
+#include <QLabel>
+#include <QVBoxLayout>
+
+#include <utility>
+
+AccessDialog::AccessDialog(const QString &title,
+                           const QString &subtitle,
+                           const QString &body,
+                           const QVariantMap &options,
+                           const AccessDialogTypes::OptionList &choices,
+                           QWidget *parent)
+    : DDialog(parent)
+    , m_choices(choices)
 {
-    setAccessibleName("AccessDialog");
-    setIcon(QIcon::fromTheme("dialog-warning"));
-    setAttribute(Qt::WA_QuitOnClose);
-    // 设置tittle
-    m_titleLabel->setObjectName("TitileText");
-    m_titleLabel->setAccessibleName("TitileText");
-    addContent(m_titleLabel, Qt::AlignTop | Qt::AlignHCenter);
-    QFont font = m_titleLabel->font();
-    font.setBold(true);
-    font.setPixelSize(16);
-    m_titleLabel->setFont(font);
-    m_titleLabel->setText(title);
-    // 设置subtitle
-    m_subtitleLabel->setObjectName("SubtitleText");
-    m_subtitleLabel->setAccessibleName("SubtitleText");
-    addContent(m_subtitleLabel, Qt::AlignTop | Qt::AlignHCenter);
-    m_subtitleLabel->setText(subtitle+"\n");
-    // 设置body
-    m_bodyLabel->setObjectName("BodyText");
-    m_bodyLabel->setAccessibleName("BodyText");
-    addContent(m_bodyLabel, Qt::AlignTop | Qt::AlignHCenter);
-    m_bodyLabel->setText(body);
+    setAccessibleName(QStringLiteral("AccessDialog"));
+    setTitle(title);
+    setWordWrapTitle(true);
+    setWindowModality(options.value(QStringLiteral("modal"), true).toBool()
+                              ? Qt::WindowModal
+                              : Qt::NonModal);
+    setOnButtonClickedClose(false);
+    setCloseButtonVisible(true);
 
-    if (options.contains(QStringLiteral("modal"))) {
-        setModal(options.value(QStringLiteral("modal")).toBool());
+    const QString iconName = options.value(QStringLiteral("icon")).toString();
+    setIcon(QIcon::fromTheme(iconName.isEmpty() ? QStringLiteral("dialog-warning") : iconName));
+
+    auto content = new QWidget(this);
+    auto contentLayout = new QVBoxLayout(content);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+
+    if (!subtitle.isEmpty()) {
+        auto subtitleLabel = new QLabel(subtitle, content);
+        subtitleLabel->setObjectName(QStringLiteral("SubtitleText"));
+        subtitleLabel->setAccessibleName(QStringLiteral("SubtitleText"));
+        subtitleLabel->setTextFormat(Qt::PlainText);
+        subtitleLabel->setWordWrap(true);
+        QFont font = subtitleLabel->font();
+        font.setBold(true);
+        subtitleLabel->setFont(font);
+        contentLayout->addWidget(subtitleLabel);
     }
 
-    if (options.contains(QStringLiteral("deny_label"))) {
-        m_denyLabel = options.value(QStringLiteral("deny_label")).toString();
-    } else {
-        m_denyLabel = tr("Deny Access");
-    }
-    
-    int denyButtonIndex = addButton(tr("%1 (%2s)", "e.g. Deny Access (15s)").arg(m_denyLabel).arg(m_remainingSeconds), QMessageBox::RejectRole);
-    m_denyButton = qobject_cast<QPushButton*>(getButton(denyButtonIndex));
-    
-    // 设置定时器
-    connect(m_countdownTimer, &QTimer::timeout, this, &AccessDialog::updateDenyButtonText);
-    m_countdownTimer->start(1000); // 每秒更新一次
-
-
-    int allowButton;
-    if (options.contains(QStringLiteral("grant_label"))) {
-        addButton(options.value(QStringLiteral("grant_label")).toString(), QMessageBox::AcceptRole);
-    } else {
-        addButton(tr("Grant Access"), QMessageBox::AcceptRole);
+    if (!body.isEmpty()) {
+        auto bodyLabel = new QLabel(body, content);
+        bodyLabel->setObjectName(QStringLiteral("BodyText"));
+        bodyLabel->setAccessibleName(QStringLiteral("BodyText"));
+        bodyLabel->setTextFormat(Qt::PlainText);
+        bodyLabel->setWordWrap(true);
+        contentLayout->addWidget(bodyLabel);
     }
 
-    setWindowFlag(Qt::WindowStaysOnTopHint);
+    if (!m_choices.isEmpty()) {
+        auto choicesWidget = new QWidget(content);
+        auto choicesLayout = new QFormLayout(choicesWidget);
+        choicesLayout->setContentsMargins(0, 0, 0, 0);
+        for (const auto &option : std::as_const(m_choices)) {
+            m_selectedChoices.insert(option.id, option.initialChoiceId);
+            if (option.choices.isEmpty()) {
+                auto checkBox = new QCheckBox(option.label, choicesWidget);
+                checkBox->setChecked(option.initialChoiceId == QStringLiteral("true"));
+                connect(checkBox, &QCheckBox::toggled, this, [this, id = option.id](bool checked) {
+                    m_selectedChoices.insert(id,
+                                             checked ? QStringLiteral("true")
+                                                     : QStringLiteral("false"));
+                });
+                choicesLayout->addRow(checkBox);
+                continue;
+            }
+
+            auto comboBox = new QComboBox(choicesWidget);
+            int initialIndex = 0;
+            for (qsizetype i = 0; i < option.choices.size(); ++i) {
+                const auto &choice = option.choices.at(i);
+                comboBox->addItem(choice.value, choice.id);
+                if (choice.id == option.initialChoiceId) {
+                    initialIndex = i;
+                }
+            }
+            comboBox->setCurrentIndex(initialIndex);
+            if (!option.choices.isEmpty()) {
+                m_selectedChoices.insert(option.id, option.choices.at(initialIndex).id);
+            }
+            connect(comboBox, &QComboBox::currentIndexChanged, this,
+                    [this, comboBox, id = option.id](int index) {
+                if (index >= 0) {
+                    m_selectedChoices.insert(id, comboBox->itemData(index).toString());
+                }
+            });
+            choicesLayout->addRow(option.label, comboBox);
+        }
+        contentLayout->addWidget(choicesWidget);
+    }
+
+    addContent(content);
+
+    const QString denyLabel = options.value(QStringLiteral("deny_label"), tr("Deny")).toString();
+    const QString grantLabel = options.value(QStringLiteral("grant_label"), tr("Allow")).toString();
+    const int denyButton = addButton(denyLabel, false, DDialog::ButtonNormal);
+    const int grantButton = addButton(grantLabel, true, DDialog::ButtonRecommend);
+    connect(this, &DDialog::buttonClicked, this,
+            [this, denyButton, grantButton](int index, const QString &) {
+        if (index == grantButton) {
+            accept();
+        } else if (index == denyButton) {
+            reject();
+        }
+    });
 }
 
-AccessDialog::~AccessDialog(){
-    if (m_countdownTimer) {
-        m_countdownTimer->stop();
-    }
-}
-
-void AccessDialog::updateDenyButtonText()
+AccessDialogTypes::Choices AccessDialog::selectedChoices() const
 {
-    m_remainingSeconds--;
-    
-    if (m_remainingSeconds <= 0) {
-        m_countdownTimer->stop();
-        onTimeout();
-    } else if (m_denyButton) {
-        m_denyButton->setText(tr("%1 (%2s)", "e.g. Deny Access (15s)").arg(m_denyLabel).arg(m_remainingSeconds));
+    AccessDialogTypes::Choices result;
+    result.reserve(m_choices.size());
+    for (const auto &option : m_choices) {
+        result.append({option.id, m_selectedChoices.value(option.id, option.initialChoiceId)});
     }
-}
-
-void AccessDialog::onTimeout()
-{
-    // 倒计时结束，自动拒绝
-    reject();
+    return result;
 }
