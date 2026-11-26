@@ -459,11 +459,15 @@ void AbstractPipeWireStream::onStreamAddBuffer(pw_buffer *buffer)
 {
     struct spa_data *d;
     enum spa_data_type t;
+    uint32_t flags = SPA_DATA_FLAG_READABLE;
     d = buffer->buffer->datas;
 
     if ((d[0].type & (1u << SPA_DATA_MemFd)) > 0) {
         assert(m_bufferType == PortalCommon::SHM);
         t = SPA_DATA_MemFd;
+#ifdef SPA_DATA_FLAG_MAPPABLE
+        flags = flags | SPA_DATA_FLAG_MAPPABLE;
+#endif
     } else if ((d[0].type & (1u << SPA_DATA_DmaBuf)) > 0) {
         assert(m_bufferType == PortalCommon::DMABUF);
         t = SPA_DATA_DmaBuf;
@@ -494,7 +498,7 @@ void AbstractPipeWireStream::onStreamAddBuffer(pw_buffer *buffer)
         d[plane].chunk->size = pipeWireSourceBuffer->size[plane];
         d[plane].chunk->stride = pipeWireSourceBuffer->stride[plane];
         d[plane].chunk->offset = pipeWireSourceBuffer->offset[plane];
-        d[plane].flags = 0;
+        d[plane].flags = flags;
         d[plane].fd = pipeWireSourceBuffer->fd[plane];
         d[plane].data = nullptr;
         if (pipeWireSourceBuffer->bufferType == PortalCommon::DMABUF && d[plane].chunk->size == 0) {
